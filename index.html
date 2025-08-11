@@ -1861,6 +1861,39 @@
     background: #94a3b8;
   }
 </style>
+
+<style>
+  /* Change timeline background to white for better contrast */
+  .timeline-container, .graph-container {
+    background-color: #ffffff !important;
+  }
+
+  /* Task labels: Make text black and bolder */
+  .task-name, .timeline-label {
+    color: #000000 !important;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  /* Bars: Darken grays and pinks for contrast */
+  .task-bar {
+    background-color: #4a4a4a !important;
+    border: 1px solid #000000 !important;
+  }
+  .task-bar.low-priority {
+    background-color: #a52a2a !important;
+  }
+
+  /* Red text/outlines: Tone down to darker red if too bright */
+  .critical, .error {
+    color: #8b0000 !important;
+  }
+
+  /* Overall app: Ensure no gradient bleed */
+  body {
+    background: #ffffff !important;
+  }
+</style>
 </head>
 <body>
   <a href="#appRoot" class="skip-link">Skip to main content</a>

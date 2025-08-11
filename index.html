@@ -231,14 +231,30 @@
   
   .header-center {
     display: flex;
+    gap: var(--spacing-xl);
+    align-items: flex-start;
+  }
+
+  .toolbar-group {
+    display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
-    align-items: center;
+  }
+
+  .toolbar-heading {
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    font-weight: 600;
   }
   
   .button-group {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
     align-items: center;
   }
   
@@ -396,13 +412,21 @@
   /* Enhanced layout */
   .layout{
     display: grid;
-    grid-template-columns: 400px 1fr;
+    grid-template-columns: auto 1fr;
     gap: var(--spacing-xl);
     padding: var(--spacing-xl);
     max-width: 1920px;
     margin: 0 auto;
   }
   
+  details > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+
   /* Enhanced sidebar */
   aside{
     background: var(--panel);
@@ -635,6 +659,7 @@
   /* Enhanced tabs */
   .tabs{
     display: flex;
+    align-items: center;
     gap: var(--spacing-sm);
     border-bottom: 1px solid var(--line);
     background: #f8fafc;
@@ -1948,46 +1973,55 @@
     </div>
     
     <div class="header-center">
-      <div class="button-group">
-        <button class="btn" id="btnNew" aria-label="Create new project">
-          <span class="btn-icon" aria-hidden="true">✨</span>
-          New
-        </button>
-        <button class="btn" id="btnLoad" aria-label="Open existing project file">
-          <span class="btn-icon" aria-hidden="true">📁</span>
-          Open…
-        </button>
-        <button class="btn" id="btnSave" aria-label="Save current project">
-          <span class="btn-icon" aria-hidden="true">💾</span>
-          Save
-        </button>
-        <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON">
-          <span class="btn-icon" aria-hidden="true">📤</span>
-          Export JSON
-        </button>
-        <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV">
-          <span class="btn-icon" aria-hidden="true">📊</span>
-          Export CSV
-        </button>
-        <button class="btn small" id="btnUndo" title="Ctrl+Z" aria-label="Undo last action">
-          <span class="btn-icon" aria-hidden="true">↶</span>
-          Undo
-        </button>
-        <button class="btn small" id="btnRedo" title="Ctrl+Y" aria-label="Redo last undone action">
-          <span class="btn-icon" aria-hidden="true">↷</span>
-          Redo
-        </button>
-        <button class="btn accent" id="btnPrint" aria-label="Print project or export as PDF">
-          <span class="btn-icon" aria-hidden="true">🖨️</span>
-          Print / PDF
-        </button>
-        <button class="btn" id="btnGuide" aria-label="Show user guide and help" onclick="document.getElementById('guided-workflow').style.display = 'block';">
-          <span class="btn-icon" aria-hidden="true">❓</span>
-          Guide
-        </button>
-        <button class="btn" id="btnToggleTheme" aria-label="Toggle dark mode">
-          <span class="btn-icon" aria-hidden="true">🌙</span>
-        </button>
+      <div class="toolbar-group">
+        <h2 class="toolbar-heading">File</h2>
+        <div class="button-group">
+          <button class="btn" id="btnNew" aria-label="Create new project">
+            <span class="btn-icon" aria-hidden="true">✨</span>
+            New
+          </button>
+          <button class="btn" id="btnLoad" aria-label="Open existing project file">
+            <span class="btn-icon" aria-hidden="true">📁</span>
+            Open…
+          </button>
+          <button class="btn" id="btnSave" aria-label="Save current project">
+            <span class="btn-icon" aria-hidden="true">💾</span>
+            Save
+          </button>
+          <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON">
+            <span class="btn-icon" aria-hidden="true">📤</span>
+            Export JSON
+          </button>
+          <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV">
+            <span class="btn-icon" aria-hidden="true">📊</span>
+            Export CSV
+          </button>
+        </div>
+      </div>
+      <div class="toolbar-group">
+        <h2 class="toolbar-heading">Tools</h2>
+        <div class="button-group">
+        <button class="btn" id="btnUndo" title="Ctrl+Z" aria-label="Undo last action">
+            <span class="btn-icon" aria-hidden="true">↶</span>
+            Undo
+          </button>
+        <button class="btn" id="btnRedo" title="Ctrl+Y" aria-label="Redo last undone action">
+            <span class="btn-icon" aria-hidden="true">↷</span>
+            Redo
+          </button>
+          <button class="btn accent" id="btnPrint" aria-label="Print project or export as PDF">
+            <span class="btn-icon" aria-hidden="true">🖨️</span>
+            Print / PDF
+          </button>
+          <button class="btn" id="btnGuide" aria-label="Show user guide and help" onclick="document.getElementById('guided-workflow').style.display = 'block';">
+            <span class="btn-icon" aria-hidden="true">❓</span>
+            Guide
+          </button>
+          <button class="btn" id="btnToggleTheme" aria-label="Toggle dark mode">
+            <span class="btn-icon" aria-hidden="true">🌙</span>
+          Theme
+          </button>
+        </div>
       </div>
     </div>
     
@@ -2019,8 +2053,11 @@
   </div>
   <div id="fatal"></div>
   <div class="layout" style="display:none" id="appRoot">
-    <aside>
-      <h2><span class="section-icon" aria-hidden="true">📅</span> Project Settings</h2>
+    <details open>
+      <summary>
+        <h2><span class="section-icon" aria-hidden="true">📅</span> Project Settings</h2>
+      </summary>
+      <aside>
       <div class="row">
         <label class="form-label">
           <span class="label-icon" aria-hidden="true">📅</span>
@@ -2177,7 +2214,19 @@
         </div>
         <div class="issues" id="issues"></div>
       </details>
+
+      <details>
+        <summary>
+          <h2>Legend</h2>
+        </summary>
+        <div class="p-sm" style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+          <span class="pill">Links: FS/SS/FF/SF + \+/- lag (d or w)</span>
+          <span class="pill">Constraints: MSO / SNET</span>
+          <span class="pill">Severities: info / warn / error / critical</span>
+        </div>
+      </details>
     </aside>
+    </details>
 
     <main role="main" aria-label="Project planning workspace">
       <div class="tabs" role="tablist" aria-label="Project views">
@@ -2185,22 +2234,15 @@
         <div class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph">Dependency Graph</div>
         <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
         <div class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare">Compare</div>
-      </div>
-      <div class="legend" role="region" aria-label="Chart legend and controls">
-        <div class="group">
-          <span class="pill">Links: FS/SS/FF/SF + \+/- lag (d or w)</span>
-          <span class="pill">Constraints: MSO / SNET</span>
-          <span class="pill">Severities: info / warn / error / critical</span>
-        </div>
-        <div class="group" style="margin-left:auto">
-          <span>Timeline</span>
-          <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
-          <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
-          <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
-          <span style="margin-left:.5rem">Graph</span>
-          <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
-          <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
-          <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
+        <div class="view-controls" style="margin-left: auto; display: flex; align-items: center; gap: var(--spacing-md);">
+            <span>Timeline</span>
+            <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
+            <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
+            <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
+            <span style="margin-left:.5rem">Graph</span>
+            <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
+            <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
+            <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
         </div>
       </div>
       <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view">

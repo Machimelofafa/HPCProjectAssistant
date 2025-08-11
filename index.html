@@ -94,6 +94,9 @@
   .bulk .row{display:grid; grid-template-columns: 1fr 1fr; gap:.5rem}
   .bulk .row-3{grid-template-columns: 1fr 1fr 1fr}
 
+  .inline-edit{display:grid; gap:.35rem}
+  .inline-edit .row{display:grid; grid-template-columns:1fr 60px 1fr 1fr 60px; gap:.35rem; align-items:center}
+
   /* Modal */
   .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(2,6,23,0.45)}
   .modal .panel{background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); width:min(880px, 94vw); max-height:85vh; overflow:auto}
@@ -175,6 +178,9 @@
         <button class="btn small" id="btnSubNone">None</button>
       </div>
       <div class="subsys" id="subsysFilters"></div>
+
+      <h2>Edit Selected (<span id="inlineCount">0</span>)</h2>
+      <div class="inline-edit" id="inlineEdit"></div>
 
       <h2>Bulk Edit (<span id="bulkCount">0</span>)</h2>
       <div class="bulk">
@@ -634,7 +640,18 @@ function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header
 const SEL=new Set();
 function toggleSelect(id){ if(SEL.has(id)) SEL.delete(id); else SEL.add(id); updateSelBadge(); }
 function clearSelection(){ SEL.clear(); updateSelBadge(); }
-function updateSelBadge(){ $('#selBadge').textContent = `${SEL.size} selected`; $('#bulkCount').textContent=String(SEL.size); }
+function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
+  for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
+    const dur=parseDurationStrict(t.duration).days||0; row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
+      <input type="number" min="0" data-id="${id}" data-field="duration" value="${dur}">
+      <input type="text" data-id="${id}" data-field="phase" value="${esc(t.phase||'')}">
+      <select data-id="${id}" data-field="subsystem">${SUBS.map(sub=>`<option${sub===t.subsystem?' selected':''}>${esc(sub)}</option>`).join('')}</select>
+      <select data-id="${id}" data-field="active"><option value="true"${t.active!==false?' selected':''}>true</option><option value="false"${t.active===false?' selected':''}>false</option></select>`;
+    box.appendChild(row);
+  }
+  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); SM.updateTask(id,{[field]:val}); refresh(); }); });
+}
+function updateSelBadge(){ $('#selBadge').textContent = `${SEL.size} selected`; $('#bulkCount').textContent=String(SEL.size); $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size)); renderInlineEditor(); }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
     const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDurationStrict(t.duration).days + n); }

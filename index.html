@@ -2353,6 +2353,28 @@
     <div data-action="adddep" role="menuitem" tabindex="0">Add dependency</div>
   </div>
 
+  <div class="modal" id="help-modal" role="dialog" aria-labelledby="helpModalTitle" aria-hidden="true" style="z-index: 1001;">
+    <div class="panel">
+      <header style="justify-content: space-between;">
+        <h1 id="helpModalTitle">Keyboard Shortcuts</h1>
+        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('help-modal').style.display = 'none';">×</button>
+      </header>
+      <div class="p-lg" style="display: grid; grid-template-columns: auto 1fr; gap: var(--spacing-sm) var(--spacing-lg); align-items: center;">
+        <kbd>Ctrl/Cmd + Z</kbd> <span>Undo last action</span>
+        <kbd>Ctrl/Cmd + Y</kbd> <span>Redo last action</span>
+        <kbd>Delete</kbd> <span>Delete selected tasks</span>
+        <kbd>Ctrl/Cmd + D</kbd> <span>Duplicate selected tasks</span>
+        <kbd>↑</kbd> / <kbd>↓</kbd> <span>Navigate task list</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <kbd>Ctrl/Cmd + S</kbd> <span>Save Project</span>
+        <kbd>Ctrl/Cmd + O</kbd> <span>Open Project</span>
+        <kbd>Ctrl/Cmd + P</kbd> <span>Print / PDF</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <kbd>?</kbd> or <kbd>F1</kbd> <span>Show this help dialog</span>
+      </div>
+    </div>
+  </div>
+
   <div id="guided-workflow" style="display: none; position: fixed; top: 20%; left: 20%; width: 60%; background: white; border: 1px solid #ccc; padding: 20px; z-index: 1000; box-shadow: 0 0 10px rgba(0,0,0,0.5);" aria-hidden="true" role="dialog" aria-labelledby="guideModalTitle" aria-describedby="guideModalDescription">
     <div class="panel">
       <header>
@@ -2493,6 +2515,22 @@ const SM=(function(){
   const undo=[]; const redo=[]; const MAX=100;
   function get(){ return clone(state); }
   function _apply(next){ state=deepFreeze(clone(next)); for(const fn of listeners){ try{ fn(get()); }catch(e){ console.warn(e); } } }
+
+  function updateUndoUI() {
+      const undoBtn = $('#btnUndo');
+      const redoBtn = $('#btnRedo');
+      if (undoBtn) {
+          const lastUndo = undo[undo.length - 1];
+          undoBtn.disabled = !canUndo();
+          undoBtn.title = lastUndo ? `Undo: ${lastUndo.name} (Ctrl+Z)` : 'Undo (Ctrl+Z)';
+      }
+      if (redoBtn) {
+          const lastRedo = redo[redo.length - 1];
+          redoBtn.disabled = !canRedo();
+          redoBtn.title = lastRedo ? `Redo: ${lastRedo.name} (Ctrl+Y)` : 'Redo (Ctrl+Y)';
+      }
+  }
+
   function saveState(state) {
     try {
       const data = JSON.stringify(state);
@@ -2510,21 +2548,30 @@ const SM=(function(){
       }
     }
   }
-  function set(next, opts={}){ const prev=get(); _apply(next); if(opts.record!==false){ undo.push(prev); if(undo.length>MAX) undo.shift(); redo.length=0; }
+  function set(next, opts={}){
+    const prev=get();
+    _apply(next);
+    if(opts.record!==false){
+      const actionName = opts.name || 'Unknown action';
+      undo.push({ state: prev, name: actionName });
+      if(undo.length>MAX) undo.shift();
+      redo.length=0;
+    }
     window.dispatchEvent(new CustomEvent('state:changed', {detail:{sourceIds:opts.sourceIds||[]}}));
     if (opts.noSave !== true) {
       saveState(next);
     }
+    updateUndoUI();
   }
-  function setProjectProps(props){ const cur=get(); Object.assign(cur, props); set(cur); }
-  function addTasks(list){ const cur=get(); const ids=new Set(cur.tasks.map(t=>t.id)); const add=list.map(t=>{ let id=t.id||uid('t'); while(ids.has(id)) id=uid('t'); ids.add(id); return {...t, id}; }); cur.tasks=cur.tasks.concat(add); set(cur); }
+  function setProjectProps(props, opts={}){ const cur=get(); Object.assign(cur, props); set(cur, opts); }
+  function addTasks(list, opts={}){ const cur=get(); const ids=new Set(cur.tasks.map(t=>t.id)); const add=list.map(t=>{ let id=t.id||uid('t'); while(ids.has(id)) id=uid('t'); ids.add(id); return {...t, id}; }); cur.tasks=cur.tasks.concat(add); set(cur, opts); }
   function replaceTasks(tasks, opts={}){ const cur=get(); cur.tasks=tasks; set(cur, opts); }
   function updateTask(id, patch, opts={}){ const cur=get(); const i=cur.tasks.findIndex(t=>t.id===id); if(i<0) return; cur.tasks=cur.tasks.slice(); cur.tasks[i]={...cur.tasks[i], ...patch}; set(cur,{sourceIds:[id], ...opts}); }
   function onChange(fn){ listeners.push(fn); }
   function setCPMWarnings(list){ lastCPMWarns = list||[]; }
   function canUndo(){ return undo.length>0; } function canRedo(){ return redo.length>0; }
-  function undoOp(){ if(!canUndo()) return; const prev=undo.pop(); const cur=get(); redo.push(cur); _apply(prev); }
-  function redoOp(){ if(!canRedo()) return; const next=redo.pop(); const cur=get(); undo.push(cur); _apply(next); }
+  function undoOp(){ if(!canUndo()) return; const record=undo.pop(); const cur={state: get(), name: record.name}; redo.push(cur); _apply(record.state); updateUndoUI(); }
+  function redoOp(){ if(!canRedo()) return; const record=redo.pop(); const cur={state: get(), name: record.name}; undo.push(cur); _apply(record.state); updateUndoUI(); }
   return {get,set,setProjectProps,addTasks,replaceTasks,updateTask,onChange,setCPMWarnings,undo:undoOp,redo:redoOp,canUndo,canRedo};
 })();
 
@@ -2596,34 +2643,34 @@ function collectIssues(project, cpm){
   const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
   const seenIds=new Set(); const dupIds=new Set(); for(const t of project.tasks){ if(seenIds.has(t.id)) dupIds.add(t.id); seenIds.add(t.id); }
   function push(sev, msg, opts={}){ const id='i_'+(++seq); const it={id, sev, msg, ...opts}; if(opts.fix){ FIX[id]=opts.fix; it.hasFix=true; } issues.push(it); }
-  if(!project.startDate) push('error','Project start date is missing.',{fix:()=> SM.setProjectProps({startDate: todayStr()})});
-  if(dupIds.size){ push('critical',`Duplicate task ids: ${Array.from(dupIds).join(', ')}`,{fix:()=>{ const s=SM.get(); const used=new Set(); for(const t of s.tasks){ if(used.has(t.id)){ t.id = t.id+"_"+Math.random().toString(36).slice(2,5); } used.add(t.id); } SM.replaceTasks(s.tasks); }}); }
+  if(!project.startDate) push('error','Project start date is missing.',{fix:()=> SM.setProjectProps({startDate: todayStr()}, {name: 'Set Start Date'})});
+  if(dupIds.size){ push('critical',`Duplicate task ids: ${Array.from(dupIds).join(', ')}`,{fix:()=>{ const s=SM.get(); const used=new Set(); for(const t of s.tasks){ if(used.has(t.id)){ t.id = t.id+"_"+Math.random().toString(36).slice(2,5); } used.add(t.id); } SM.replaceTasks(s.tasks, {name: 'Fix Duplicate IDs'}); }}); }
   for(const t of project.tasks){
-    if(!t.id||String(t.id).trim()==='') push('error',`Task with empty id: "${t.name||'(no name)'}"`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x===t); T.id = uid('t'); SM.replaceTasks(s.tasks);} });
-    if(!t.name||String(t.name).trim()==='') push('error',`Task ${t.id}: name is required.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.name = T.name && T.name.trim()? T.name : t.id; SM.replaceTasks(s.tasks);} });
-    const pd=parseDurationStrict(t.duration); if(pd.error) push('error',`Task ${t.name||t.id}: ${pd.error}`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks);} });
-    if(t.fixedStart!=null && (!Number.isInteger(t.fixedStart) || t.fixedStart<0)) push('error',`Task ${t.name}: fixedStart must be a non‑negative integer (days offset).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.fixedStart; SM.replaceTasks(s.tasks);} });
-    if(t.startConstraint){ const sc=t.startConstraint; if(!sc || !['MSO','SNET'].includes(sc.type)) push('error',`Task ${t.name}: startConstraint.type must be MSO or SNET.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.startConstraint; SM.replaceTasks(s.tasks);} }); if(sc && (sc.day==null || !Number.isInteger(sc.day) || sc.day<0)) push('error',`Task ${t.name}: startConstraint.day must be a non‑negative integer (days).`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint) T.startConstraint.day=0; SM.replaceTasks(s.tasks);} }); }
+    if(!t.id||String(t.id).trim()==='') push('error',`Task with empty id: "${t.name||'(no name)'}"`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x===t); T.id = uid('t'); SM.replaceTasks(s.tasks, {name: 'Fix Empty ID'});} });
+    if(!t.name||String(t.name).trim()==='') push('error',`Task ${t.id}: name is required.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.name = T.name && T.name.trim()? T.name : t.id; SM.replaceTasks(s.tasks, {name: 'Fix Empty Name'});} });
+    const pd=parseDurationStrict(t.duration); if(pd.error) push('error',`Task ${t.name||t.id}: ${pd.error}`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Duration'});} });
+    if(t.fixedStart!=null && (!Number.isInteger(t.fixedStart) || t.fixedStart<0)) push('error',`Task ${t.name}: fixedStart must be a non‑negative integer (days offset).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.fixedStart; SM.replaceTasks(s.tasks, {name: 'Fix Invalid fixedStart'});} });
+    if(t.startConstraint){ const sc=t.startConstraint; if(!sc || !['MSO','SNET'].includes(sc.type)) push('error',`Task ${t.name}: startConstraint.type must be MSO or SNET.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.startConstraint; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Type'});} }); if(sc && (sc.day==null || !Number.isInteger(sc.day) || sc.day<0)) push('error',`Task ${t.name}: startConstraint.day must be a non‑negative integer (days).`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint) T.startConstraint.day=0; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Day'});} }); }
     const depStrings=t.deps||[];
     const seen=new Set();
-    for(const tok of depStrings){ const d=parseDepToken(tok); if(!d) continue; if(d.pred===t.id) push('critical',`Task ${t.name}: self‑dependency not allowed (${tok}).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.deps=(T.deps||[]).filter(x=>x!==tok); SM.replaceTasks(s.tasks);} });
-      if(!id2[d.pred]) push('error',`Task ${t.name}: missing dependency "${d.pred}".`,{taskId:t.id, fix:()=>{ const s=SM.get(); const pred={id:d.pred||uid('t'), name:`Placeholder: ${d.pred||'pred'}`, duration:1, deps:[]}; s.tasks.push(pred); SM.replaceTasks(s.tasks);} });
-      if(seen.has(d.pred)) push('warn',`Task ${t.name}: duplicate dependency on ${d.pred}.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); const seen2=new Set(); T.deps=(T.deps||[]).filter(x=>{ const p=parseDepToken(x); if(!p) return false; if(seen2.has(p.pred)) return false; seen2.add(p.pred); return true; }); SM.replaceTasks(s.tasks);} });
+    for(const tok of depStrings){ const d=parseDepToken(tok); if(!d) continue; if(d.pred===t.id) push('critical',`Task ${t.name}: self‑dependency not allowed (${tok}).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.deps=(T.deps||[]).filter(x=>x!==tok); SM.replaceTasks(s.tasks, {name: 'Remove Self-Dependency'});} });
+      if(!id2[d.pred]) push('error',`Task ${t.name}: missing dependency "${d.pred}".`,{taskId:t.id, fix:()=>{ const s=SM.get(); const pred={id:d.pred||uid('t'), name:`Placeholder: ${d.pred||'pred'}`, duration:1, deps:[]}; s.tasks.push(pred); SM.addTasks([pred], {name: 'Add Missing Dependency'});} });
+      if(seen.has(d.pred)) push('warn',`Task ${t.name}: duplicate dependency on ${d.pred}.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); const seen2=new Set(); T.deps=(T.deps||[]).filter(x=>{ const p=parseDepToken(x); if(!p) return false; if(seen2.has(p.pred)) return false; seen2.add(p.pred); return true; }); SM.replaceTasks(s.tasks, {name: 'Remove Duplicate Dependency'});} });
       seen.add(d.pred);
-      if(id2[d.pred] && id2[d.pred].active===false) push('warn',`Task ${t.name}: predecessor ${d.pred} is inactive.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const P=s.tasks.find(x=>x.id===d.pred); if(P){ P.active=true; SM.replaceTasks(s.tasks);} }});
+      if(id2[d.pred] && id2[d.pred].active===false) push('warn',`Task ${t.name}: predecessor ${d.pred} is inactive.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const P=s.tasks.find(x=>x.id===d.pred); if(P){ P.active=true; SM.replaceTasks(s.tasks, {name: 'Activate Predecessor'});} }});
     }
   }
   const cycles=findCycles(project.tasks);
-  for(const c of cycles){ const chain=c.join(' → '); push('critical',`Cycle detected: ${chain}`,{fix:()=>{ const s=SM.get(); const last=c[c.length-2]; const first=c[0]; const T=s.tasks.find(x=>x.id===last); if(T&&T.deps){ T.deps=T.deps.filter(tok=>{ const p=parseDepToken(tok); return !(p && p.pred===first); }); SM.replaceTasks(s.tasks);} }}); }
+  for(const c of cycles){ const chain=c.join(' → '); push('critical',`Cycle detected: ${chain}`,{fix:()=>{ const s=SM.get(); const last=c[c.length-2]; const first=c[0]; const T=s.tasks.find(x=>x.id===last); if(T&&T.deps){ T.deps=T.deps.filter(tok=>{ const p=parseDepToken(tok); return !(p && p.pred===first); }); SM.replaceTasks(s.tasks, {name: 'Break Cycle'});} }}); }
   if(cpm && cpm.tasks){ const map=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
     for(const t of cpm.tasks){ const cur=id2[t.id]; if(!cur) continue;
       if(cur.startConstraint && cur.startConstraint.type==='MSO'){
         let esReq=0; for(const dep of normalizeDeps(cur)){ const p=map[dep.pred]; if(!p) continue; const dur=parseDurationStrict(cur.duration).days||0; if(dep.type==='FS') esReq=Math.max(esReq, p.ef + dep.lag); else if(dep.type==='SS') esReq=Math.max(esReq, p.es + dep.lag); else if(dep.type==='FF') esReq=Math.max(esReq, p.ef + dep.lag - dur); else if(dep.type==='SF') esReq=Math.max(esReq, p.es + dep.lag - dur); }
         if(esReq > (cur.startConstraint.day|0)){
-          push('error',`MSO earlier than dependency bound for ${t.name} (MSO ${cur.startConstraint.day}d < required ${esReq}d).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint){ T.startConstraint.day=esReq; } SM.replaceTasks(s.tasks);} });
+          push('error',`MSO earlier than dependency bound for ${t.name} (MSO ${cur.startConstraint.day}d < required ${esReq}d).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint){ T.startConstraint.day=esReq; } SM.replaceTasks(s.tasks, {name: 'Fix MSO Violation'});} });
         }
       }
-      const dur=parseDurationStrict(cur.duration).days||0; if(dur===0 && !(String(cur.name||'').toLowerCase().includes('gate') || String(cur.phase||'').toLowerCase().includes('gate'))){ push('info',`Zero‑duration task: ${cur.name}. Consider a milestone (ok) or set to 1d.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks);} }); }
+      const dur=parseDurationStrict(cur.duration).days||0; if(dur===0 && !(String(cur.name||'').toLowerCase().includes('gate') || String(cur.phase||'').toLowerCase().includes('gate'))){ push('info',`Zero‑duration task: ${cur.name}. Consider a milestone (ok) or set to 1d.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Set Duration to 1d'});} }); }
     }
   }
   return {issues, FIX};
@@ -2666,8 +2713,136 @@ function groupKey(t){ const g=$('#groupBy').value||'none'; if(g==='phase') retur
 // Functions to render the main views: dependency graph, timeline, focus view, etc.
 // ---------------------------------------------------------------------------
 
-function layoutDAG(tasks){ const byLevel=new Map(); const K=100; for(const t of tasks){ const lvl=t.es; const y=Math.round(lvl/5); if(!byLevel.has(y)) byLevel.set(y,[]); byLevel.get(y).push(t);} const pos=new Map(); for(const [lvl,arr] of byLevel){ arr.sort((a,b)=> (a.phase||'').localeCompare(b.phase||'')); let x=40; for(const t of arr){ pos.set(t.id,{x, y: 40+lvl*K}); x+=Math.max(160, 8*(t.name||'').length); } } return pos; }
-function renderGraph(project, cpm){ const svg = $('#graphSvg'); svg.innerHTML=''; const defs=document.createElementNS('http://www.w3.org/2000/svg','defs'); defs.innerHTML=`<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>`; svg.appendChild(defs); const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g); const tasks=cpm.tasks.filter(matchesFilters); const id2=Object.fromEntries(cpm.tasks.map(t=>[t.id,t])); const pos=layoutDAG(tasks); for(const t of tasks){ const edges = normalizeDeps(t); for(const e of edges){ const d=e.pred; if(!id2[d] || !matchesFilters(id2[d])) continue; const p1=pos.get(d), p2=pos.get(t.id); if(!p1||!p2) continue; const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',`M ${p1.x+120} ${p1.y+20} L ${p2.x-12} ${p2.y+20}`); line.setAttribute('class','edge arrow'+(t.critical&&id2[d].critical?' critical':'')); g.appendChild(line);} } for(const t of tasks){ const p=pos.get(t.id); if(!p) continue; const node=document.createElementNS('http://www.w3.org/2000/svg','g'); node.setAttribute('class','node'+(t.critical?' critical':'')); node.setAttribute('data-id',t.id); if(SEL.has(t.id)) node.classList.add('selected'); const color=colorFor(t.subsystem); node.innerHTML = `<rect x="${p.x}" y="${p.y}" width="240" height="44" style="stroke:${color}" rx="8" fill="#fff"/> <text x="${p.x+10}" y="${p.y+18}" class="title">${esc(t.name)}</text> <text x="${p.x+10}" y="${p.y+34}" fill="#64748b">${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}</text>`; node.addEventListener('click', ()=>{ toggleSelect(t.id); renderGraph(project,cpm); }); g.appendChild(node);} }
+function wrapText(text, maxChars) {
+    if (!text) return [''];
+    const words = String(text).split(' ');
+    const lines = [];
+    let currentLine = '';
+    for (const word of words) {
+        if ((currentLine + ' ' + word).length > maxChars && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            if (currentLine.length > 0) currentLine += ' ';
+            currentLine += word;
+        }
+    }
+    if (currentLine.length > 0) {
+        lines.push(currentLine);
+    }
+    return lines.length > 0 ? lines : [''];
+}
+
+function layoutDAG(tasks){
+    const byLevel=new Map();
+    const K=120; // Increased vertical spacing
+    const nodeSpacing = 40; // Explicit horizontal spacing
+    const charWidth = 8.5; // Estimated width of a character
+    const minWidth = 180;
+    const maxWidth = 320; // Max width before wrapping
+
+    for(const t of tasks){
+        const lvl=t.es;
+        const y=Math.round(lvl/5);
+        if(!byLevel.has(y)) byLevel.set(y,[]);
+        byLevel.get(y).push(t);
+    }
+
+    const pos=new Map();
+    for(const [lvl,arr] of byLevel){
+        arr.sort((a,b)=> (a.phase||'').localeCompare(b.phase||''));
+        let x=40;
+        for(const t of arr){
+            const name = t.name || '';
+            // Determine width first
+            const calculatedWidth = name.length * charWidth + 20;
+            const width = Math.max(minWidth, Math.min(maxWidth, calculatedWidth));
+
+            // Now determine height based on wrapping with the chosen width
+            const charLimit = Math.floor((width - 20) / charWidth);
+            const lines = wrapText(name, charLimit);
+            const height = 28 + lines.length * 16;
+
+            pos.set(t.id,{x, y: 40 + lvl * K, width, height });
+            x += width + nodeSpacing;
+        }
+    }
+    return pos;
+}
+
+function renderGraph(project, cpm){
+    const svg = $('#graphSvg');
+    svg.innerHTML='';
+    const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML=`<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>`;
+    svg.appendChild(defs);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    svg.appendChild(g);
+    const tasks=cpm.tasks.filter(matchesFilters);
+    const id2=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
+    const pos=layoutDAG(tasks);
+
+    for(const t of tasks){
+        const edges = normalizeDeps(t);
+        for(const e of edges){
+            const d=e.pred;
+            if(!id2[d] || !matchesFilters(id2[d])) continue;
+            const p1=pos.get(d), p2=pos.get(t.id);
+            if(!p1||!p2) continue;
+            const line=document.createElementNS('http://www.w3.org/2000/svg','path');
+            line.setAttribute('d',`M ${p1.x + p1.width} ${p1.y + p1.height / 2} L ${p2.x - 12} ${p2.y + p2.height / 2}`);
+            line.setAttribute('class','edge arrow'+(t.critical&&id2[d].critical?' critical':''));
+            g.appendChild(line);
+        }
+    }
+
+    for(const t of tasks){
+        const p=pos.get(t.id);
+        if(!p) continue;
+        const node=document.createElementNS('http://www.w3.org/2000/svg','g');
+        node.setAttribute('class','node'+(t.critical?' critical':''));
+        node.setAttribute('data-id',t.id);
+        if(SEL.has(t.id)) node.classList.add('selected');
+        const color=colorFor(t.subsystem);
+
+        const charLimit = Math.floor((p.width - 20) / 8.5);
+        const titleLines = wrapText(esc(t.name), charLimit);
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x', p.x);
+        rect.setAttribute('y', p.y);
+        rect.setAttribute('width', p.width);
+        rect.setAttribute('height', p.height);
+        rect.setAttribute('style', `stroke:${color}`);
+        rect.setAttribute('rx', "8");
+        rect.setAttribute('fill', "#fff");
+        node.appendChild(rect);
+
+        const titleText = document.createElementNS('http://www.w3.org/2000/svg','text');
+        titleText.setAttribute('x', p.x + 10);
+        titleText.setAttribute('y', p.y + 20);
+        titleText.setAttribute('class', 'title');
+
+        titleLines.forEach((line, i) => {
+            const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+            tspan.setAttribute('x', p.x + 10);
+            tspan.setAttribute('dy', i === 0 ? '0' : '1.2em');
+            tspan.textContent = line;
+            titleText.appendChild(tspan);
+        });
+        node.appendChild(titleText);
+
+        const metaText = document.createElementNS('http://www.w3.org/2000/svg','text');
+        metaText.setAttribute('x', p.x + 10);
+        metaText.setAttribute('y', p.y + p.height - 8);
+        metaText.setAttribute('fill', '#64748b');
+        metaText.textContent = `${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}`;
+        node.appendChild(metaText);
+
+        node.addEventListener('click', ()=>{ toggleSelect(t.id); renderGraph(project,cpm); });
+        g.appendChild(node);
+    }
+}
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
@@ -2775,16 +2950,16 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
   };
   svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
-    if(drag.side==='right'){ SM.updateTask(drag.id,{duration:durNew}); showToast('Duration updated'); }
+    if(drag.side==='right'){ SM.updateTask(drag.id,{duration:durNew}, {name: 'Update Duration'}); showToast('Duration updated'); }
     else if(drag.side==='left' || (drag.side==='move' && ev.shiftKey)){
-      const sc={type:'SNET', day:esNew}; SM.updateTask(drag.id,{startConstraint:sc, duration:durNew}); showToast('Set SNET constraint');
+      const sc={type:'SNET', day:esNew}; SM.updateTask(drag.id,{startConstraint:sc, duration:durNew}, {name: 'Set SNET Constraint'}); showToast('Set SNET constraint');
     } else {
       const allowed=$('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, cur.ef-cur.es) : 0) : 0; const autoLag=$('#toggleAutoLag')? $('#toggleAutoLag').checked : false;
-      if(esNew<allowed && !autoLag){ const sc={type:'SNET', day:allowed}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true}); showToast(`Snapped to earliest ${allowed}d`);
+      if(esNew<allowed && !autoLag){ const sc={type:'SNET', day:allowed}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true, name: 'Snap to Earliest'}); showToast(`Snapped to earliest ${allowed}d`);
       } else if(esNew!== (cur.es||0)){
         const delta = esNew - (cur.es||0);
-        if(autoLag){ const s=SM.get(); const t=s.tasks.find(x=>x.id===drag.id); t.deps=adjustIncomingLags(t, delta); SM.replaceTasks(s.tasks,{record:true}); showToast(`Adjusted predecessor lags by ${delta}d`); }
-        else { const sc={type:'SNET', day:Math.max(0, esNew)}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true}); showToast('Added SNET to honor move'); }
+        if(autoLag){ const s=SM.get(); const t=s.tasks.find(x=>x.id===drag.id); t.deps=adjustIncomingLags(t, delta); SM.replaceTasks(s.tasks,{record:true, name: `Adjust Lags by ${delta}d`}); showToast(`Adjusted predecessor lags by ${delta}d`); }
+        else { const sc={type:'SNET', day:Math.max(0, esNew)}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true, name: 'Add SNET Constraint'}); showToast('Added SNET to honor move'); }
       }
     }
     gg.classList.remove('invalid','valid'); drag=null; setTimeout(()=>{ refresh(); }, 0);
@@ -2854,7 +3029,7 @@ const SC=(function(){
   const scenarios={}; let current='Working'; let baselines=[];
   function snapshot(){ return SM.get(); }
   function saveAs(name){ scenarios[name]=clone(snapshot()); current=name; updateScenarioUI(); showToast(`Saved as "${name}"`); }
-  function switchTo(name){ if(!scenarios[name]) return; SM.set(clone(scenarios[name])); current=name; updateScenarioUI(); showToast(`Switched to "${name}"`); }
+  function switchTo(name){ if(!scenarios[name]) return; SM.set(clone(scenarios[name]), {name: `Switch to ${name}`}); current=name; updateScenarioUI(); showToast(`Switched to "${name}"`); }
   function get(name){ return scenarios[name]? clone(scenarios[name]): null; }
   function list(){ return Object.keys(scenarios); }
   function setBaselines(names){ baselines=names.filter(n=>scenarios[n]); updateScenarioUI(); showToast(`Baselines set: ${baselines.join(', ')||'none'}`); }
@@ -2985,7 +3160,7 @@ function deleteSelected(){
       });
     }
   }
-  SM.replaceTasks(remaining);
+  SM.replaceTasks(remaining, {name: `Delete ${ids.size} Task(s)`});
   clearSelection();
   showToast(`Deleted ${ids.size} task${ids.size>1?'s':''}`);
   refresh();
@@ -3022,7 +3197,7 @@ function duplicateSelected(){
     const idx=tasks.findIndex(t=>t.id===originals[i].id);
     tasks.splice(idx+1,0,clones[i]);
   }
-  SM.replaceTasks(tasks);
+  SM.replaceTasks(tasks, {name: `Duplicate ${clones.length} Task(s)`});
   SEL.clear();
   clones.forEach(c=>SEL.add(c.id));
   LAST_SEL=clones.length?clones[clones.length-1].id:null;
@@ -3042,7 +3217,7 @@ function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.
       <select data-id="${id}" data-field="active"><option value="true"${t.active!==false?' selected':''}>true</option><option value="false"${t.active===false?' selected':''}>false</option></select>`;
     box.appendChild(row);
   }
-  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}); refresh(); }); });
+  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
 }
 function updateSelBadge(){ $('#selBadge').textContent = `${SEL.size} selected`; $('#bulkCount').textContent=String(SEL.size); $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size)); renderInlineEditor(); }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
@@ -3051,7 +3226,7 @@ function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); re
     const shift=$('#bulkShift').value; if(shift!==''){ const d=parseInt(shift,10)||0; const es = t.es||0; t.startConstraint = {type:'SNET', day: Math.max(0, es + d)}; }
     const pctV=$('#bulkPct').value; if(pctV!==''){ const n=Math.min(100, Math.max(0, parseInt(pctV,10)||0)); t.pct=n; }
   }
-  SM.replaceTasks(s.tasks); showToast(`Bulk applied to ${changed} tasks`); refresh(); }
+  SM.replaceTasks(s.tasks, {name: `Bulk Edit ${changed} task(s)`}); showToast(`Bulk applied to ${changed} tasks`); refresh(); }
 
 // ----------------------------[ TEMPLATES ]----------------------------
 // Functions for inserting predefined sets of tasks (templates) into the project.
@@ -3061,7 +3236,7 @@ function insertTemplate(which){ const lib = templateLib(which); const s=SM.get()
   const mapOldToNew = new Map(lib.map((t,i)=>[t.id, toAdd[i].id]));
   toAdd.forEach((t,i)=>{ if(t.deps){ t.deps = t.deps.map(tok=>{ const e=parseDepToken(tok); if(!e) return tok; if(mapOldToNew.has(e.pred)) e.pred = mapOldToNew.get(e.pred); return stringifyDep(e); }); }
   });
-  SM.addTasks(toAdd); showToast(`Inserted ${toAdd.length} tasks from ${which}`); }
+  SM.addTasks(toAdd, {name: `Insert ${which} Template`}); showToast(`Inserted ${toAdd.length} tasks from ${which}`); }
 
 // ----------------------------[ UI ORCHESTRATION ]----------------------------
 // Functions that manage the overall UI, set up event listeners, and orchestrate updates.
@@ -3073,7 +3248,7 @@ function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tok
 
 function refresh(){ const s=SM.get(); const cpm=computeCPM(s); renderGantt(s, cpm); renderGraph(s, cpm); renderFocus(s, cpm); renderIssues(s, cpm); $('#boot').style.display='none'; $('#appRoot').style.display='grid'; if($('.tab.active').dataset.tab==='compare') buildCompare(); }
 
-function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}); $('#startDate').value=todayStr(); $('#calendarMode').value='workdays'; $('#holidayInput').value=''; clearSelection(); refresh(); }
+function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'}); $('#startDate').value=todayStr(); $('#calendarMode').value='workdays'; $('#holidayInput').value=''; clearSelection(); refresh(); }
 
 // ----------------------------[ APPLICATION BOOTSTRAP ]----------------------------
 // Main entry point of the application. Initializes the UI and sets up event listeners.
@@ -3095,10 +3270,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
         showToast('Loaded project from last session.');
       } catch (e) {
         console.warn('Failed to parse saved data, starting fresh.', e);
-        SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks: templateHPC()},{record:false});
+        SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks: templateHPC()},{record:false, name: 'Load Sample Project'});
       }
     } else {
-      SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks: templateHPC()},{record:false});
+      SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks: templateHPC()},{record:false, name: 'Load Sample Project'});
     }
     refresh();
 
@@ -3110,9 +3285,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // controls
     $('#slackThreshold').onchange = refresh;
-    $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}); refresh(); };
-    $('#startDate').onchange = ()=>{ SM.setProjectProps({startDate: $('#startDate').value||todayStr()}); refresh(); };
-    $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}); refresh(); };
+    $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); refresh(); };
+    $('#startDate').onchange = ()=>{ SM.setProjectProps({startDate: $('#startDate').value||todayStr()}, {name: 'Change Start Date'}); refresh(); };
+    $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), computeCPM(SM.get())); };
     $('#filterText').oninput = ()=>{ refresh(); };
     $('#groupBy').onchange = refresh;
@@ -3125,7 +3300,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // scenarios
     updateScenarioUI();
-    $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ refresh(); });
+    $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ SC.switchTo(e.target.value); refresh(); });
     $('#btnScenarioNew') && ($('#btnScenarioNew').onclick=()=>{ const name=prompt('New scenario name'); if(!name) return; SC.saveAs(name); refresh(); });
     $('#btnScenarioSaveAs') && ($('#btnScenarioSaveAs').onclick=()=>{ const name=prompt('Save current as…'); if(!name) return; SC.saveAs(name); refresh(); });
     $('#btnScenarioBaseline') && ($('#btnScenarioBaseline').onclick=()=>{ const name=$('#scenarioSelect').value; if(!name) return; const cur=SC.getBaselines(); if(!cur.includes(name)) cur.push(name); SC.setBaselines(cur); buildCompare(); });
@@ -3136,9 +3311,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#btnExportCSV').onclick=exportCSV;
     $('#btnExportJSON').onclick=()=>{ const json=JSON.stringify(SM.get(), null, 2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download='project.json'; a.click(); URL.revokeObjectURL(a.href); };
     $('#btnSave').onclick=()=> saveFile(JSON.stringify(SM.get(), null, 2));
-    $('#btnLoad').onclick=async()=>{ const data=await openFile(); if(!data) return; SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}); $('#startDate').value=SM.get().startDate; $('#calendarMode').value=SM.get().calendar; $('#holidayInput').value=(SM.get().holidays||[]).join(', '); clearSelection(); refresh(); };
+    $('#btnLoad').onclick=async()=>{ const data=await openFile(); if(!data) return; SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}, {name: 'Load Project'}); $('#startDate').value=SM.get().startDate; $('#calendarMode').value=SM.get().calendar; $('#holidayInput').value=(SM.get().holidays||[]).join(', '); clearSelection(); refresh(); };
     $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
-    $('#btnGuide').onclick=()=>document.getElementById('guided-workflow').style.display = 'block';
+    $('#btnGuide').onclick=()=>document.getElementById('help-modal').style.display = 'flex';
 
     // theme
     const btnToggleTheme = $('#btnToggleTheme');
@@ -3173,6 +3348,16 @@ window.addEventListener('DOMContentLoaded', ()=>{
         e.preventDefault(); moveSelection(1);
       }else if(k==='ArrowUp' || k==='ArrowLeft'){
         e.preventDefault(); moveSelection(-1);
+      } else if (e.key === '?' || e.key === 'F1') {
+        e.preventDefault();
+        const helpModal = document.getElementById('help-modal');
+        helpModal.style.display = helpModal.style.display === 'flex' ? 'none' : 'flex';
+      } else if (e.ctrlKey || e.metaKey) {
+        switch(k.toLowerCase()) {
+          case 's': e.preventDefault(); $('#btnSave').click(); break;
+          case 'o': e.preventDefault(); $('#btnLoad').click(); break;
+          case 'p': e.preventDefault(); $('#btnPrint').click(); break;
+        }
       }
     });
 
@@ -3189,7 +3374,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // Templates
     $('#btnInsertTpl').onclick=()=> insertTemplate($('#tplSelect').value);
-    $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks); refresh(); } } } };
+    $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks, {name: 'Add Dependency'}); refresh(); } } } };
 
   }catch(err){
     console.error(err);

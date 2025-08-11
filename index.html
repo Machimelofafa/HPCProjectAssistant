@@ -812,7 +812,7 @@
   
   /* Enhanced task names in timeline for better visibility */
   .gantt .bar .label[text-anchor="end"]{
-    font-size: 14px;
+    font-size: 15px;
     fill: var(--ink);
     font-weight: 600;
     font-family: var(--font-family);
@@ -2581,7 +2581,9 @@ function layoutDAG(tasks){ const byLevel=new Map(); const K=100; for(const t of 
 function renderGraph(project, cpm){ const svg = $('#graphSvg'); svg.innerHTML=''; const defs=document.createElementNS('http://www.w3.org/2000/svg','defs'); defs.innerHTML=`<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker>`; svg.appendChild(defs); const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g); const tasks=cpm.tasks.filter(matchesFilters); const id2=Object.fromEntries(cpm.tasks.map(t=>[t.id,t])); const pos=layoutDAG(tasks); for(const t of tasks){ const edges = normalizeDeps(t); for(const e of edges){ const d=e.pred; if(!id2[d] || !matchesFilters(id2[d])) continue; const p1=pos.get(d), p2=pos.get(t.id); if(!p1||!p2) continue; const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',`M ${p1.x+120} ${p1.y+20} L ${p2.x-12} ${p2.y+20}`); line.setAttribute('class','edge arrow'+(t.critical&&id2[d].critical?' critical':'')); g.appendChild(line);} } for(const t of tasks){ const p=pos.get(t.id); if(!p) continue; const node=document.createElementNS('http://www.w3.org/2000/svg','g'); node.setAttribute('class','node'+(t.critical?' critical':'')); node.setAttribute('data-id',t.id); if(SEL.has(t.id)) node.classList.add('selected'); const color=colorFor(t.subsystem); node.innerHTML = `<rect x="${p.x}" y="${p.y}" width="240" height="44" style="stroke:${color}" rx="8" fill="#fff"/> <text x="${p.x+10}" y="${p.y+18}" class="title">${esc(t.name)}</text> <text x="${p.x+10}" y="${p.y+34}" fill="#64748b">${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}</text>`; node.addEventListener('click', ()=>{ toggleSelect(t.id); renderGraph(project,cpm); }); g.appendChild(node);} }
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
-function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const P=120; const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
+function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
+  const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
+  const P = Math.min(400, 10 + maxLen * 8.5);
   // grouping
   const groups={}; const order=[]; for(const t of tasks){ const k=groupKey(t); if(k==null){ order.push(['', [t]]); continue; } if(!groups[k]) groups[k]=[]; groups[k].push(t); }
   if(Object.keys(groups).length){ for(const k of Object.keys(groups).sort()){ order.push([k, groups[k].sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]); } }
@@ -2617,19 +2619,59 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     // Add background rectangle for task name readability
     const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
-    const nameWidth = Math.max(80, t.name.length * 8); // Estimate text width
-    nameBg.setAttribute("x", P-8-nameWidth);
-    nameBg.setAttribute("y", y-2);
-    nameBg.setAttribute("width", nameWidth);
-    nameBg.setAttribute("height", 20);
-    nameBg.setAttribute("fill", "rgba(255, 255, 255, 0.95)");
+    const nameWidth = Math.max(80, (t.name||'').length * 8.5); // Estimate text width
+    nameBg.setAttribute("x", P - 10 - nameWidth);
+    nameBg.setAttribute("y", y - 4);
+    nameBg.setAttribute("width", nameWidth + 4);
+    nameBg.setAttribute("height", 24);
+    nameBg.setAttribute("fill", "var(--bg)");
     nameBg.setAttribute("rx", "4");
     nameBg.setAttribute("class", "taskNameBg");
+    nameBg.style.pointerEvents = 'none';
     bar.appendChild(nameBg);
-    
-    const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-8); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label);
+
+    const label=document.createElementNS("http://www.w3.org/2000/svg","text");
+    label.setAttribute("class","label");
+    label.setAttribute("x", P - 8);
+    label.setAttribute("y", y + 12);
+    label.setAttribute("text-anchor","end");
+    bar.appendChild(label);
+
+    const titleEl = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    titleEl.textContent = t.name;
+    label.appendChild(titleEl);
+
+    const name = t.name || '';
+    const maxCharsPerLine = Math.floor((P - 20) / 8.5);
+
+    if (name.length > maxCharsPerLine) {
+        let breakPoint = name.lastIndexOf(' ', maxCharsPerLine);
+        if (breakPoint === -1) breakPoint = maxCharsPerLine;
+
+        const line1 = name.substring(0, breakPoint);
+        const line2 = name.substring(breakPoint).trim();
+
+        label.setAttribute("y", y + 6); // Adjust y for two lines
+
+        const tspan1 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
+        tspan1.textContent = line1;
+        tspan1.setAttribute("x", P-8);
+        label.appendChild(tspan1);
+
+        const tspan2 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
+        tspan2.textContent = line2.length > maxCharsPerLine ? line2.substring(0, maxCharsPerLine - 1) + '…' : line2;
+        tspan2.setAttribute("x", P-8);
+        tspan2.setAttribute("dy", "1.2em");
+        label.appendChild(tspan2);
+
+        nameBg.setAttribute('height', '40');
+        nameBg.setAttribute('y', y-6);
+
+    } else {
+        label.textContent = name;
+    }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
-    if(!isMilestone){ const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); }
+    if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
     bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });

@@ -696,7 +696,7 @@
   }
 
   .gantt .bar rect {
-    fill: var(--panel);
+    fill: #e2e8f0;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
   }
   
@@ -712,7 +712,7 @@
   .gantt .bar.critical rect{
     stroke: var(--crit);
     stroke-width: 2;
-    fill: #fed7d7;
+    fill: #fecaca;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
   }
   
@@ -750,7 +750,9 @@
     font-size: 13px;
     fill: white;
     font-weight: 700;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+  }
+  .gantt .bar .label.duration-label {
+    fill: var(--ink);
   }
   
   /* Task name background styling */
@@ -2462,7 +2464,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       bar.appendChild(diamond);
     }else{
       const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("fill","#e2e8f0"); rect.setAttribute("style",`stroke:${col}`);
+      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
       bar.appendChild(rect);
       const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
       if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
@@ -2482,7 +2484,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     bar.appendChild(nameBg);
     
     const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-8); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label);
-    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
+    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); }
     bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });

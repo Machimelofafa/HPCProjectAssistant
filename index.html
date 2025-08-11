@@ -19,29 +19,29 @@
     --panel: #ffffff;
     --ink: #1a202c;
     --muted: #4a5568;
-    --line: #e2e8f0;
+    --line: #cbd5e0;
     
     /* Primary colors with improved accessibility */
-    --accent: #3182ce;
+    --accent: #2c5282;
     --accent-light: #63b3ed;
-    --accent-dark: #2c5282;
+    --accent-dark: #2a4365;
     
-    /* Status colors with better contrast */
-    --warn: #d69e2e;
-    --error: #d53f40;
-    --ok: #38a169;
-    --crit: #d53f40;
-    --info: #4299e1;
+    /* Status colors with better contrast - color-blind friendly (blue/orange/purple) */
+    --warn: #dd6b20;     /* orange */
+    --error: #c53030;    /* darker red */
+    --ok: #3182ce;       /* blue */
+    --crit: #c53030;     /* darker red */
+    --info: #63b3ed;     /* light blue */
     
-    /* Subsystem colors with enhanced visibility */
-    --pwr: #fc8181;
-    --pcie: #f6ad55;
-    --bmc: #68d391;
-    --bios: #9f7aea;
-    --fw: #63b3ed;
-    --mech: #4fd1c7;
-    --thermal: #ed8936;
-    --sys: #a0aec0;
+    /* Subsystem colors with enhanced visibility - color-blind friendly */
+    --pwr: #dd6b20;      /* orange */
+    --pcie: #ed8936;     /* light orange */
+    --bmc: #805ad5;      /* purple */
+    --bios: #b794f4;     /* light purple */
+    --fw: #3182ce;       /* blue */
+    --mech: #4299e1;     /* light blue */
+    --thermal: #dd6b20;  /* orange */
+    --sys: #718096;      /* slate gray */
     
       /* Enhanced shadows and effects */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -83,22 +83,24 @@
 
   html.dark-mode {
     color-scheme: dark;
-    --bg: #1a202c;
-    --panel: #2d3748;
-    --ink: #e2e8f0;
+    --bg: #121821;
+    --panel: #1a202c;
+    --ink: #f7fafc;
     --muted: #a0aec0;
-    --line: #4a5568;
-    --accent: #63b3ed;
-    --accent-light: #4299e1;
-    --accent-dark: #90cdf4;
-    --pwr: #e53e3e;
-    --pcie: #dd6b20;
-    --bmc: #38a169;
-    --bios: #805ad5;
-    --fw: #3182ce;
-    --mech: #319795;
-    --thermal: #dd6b20;
-    --sys: #718096;
+    --line: #3a4453;
+    --accent: #90cdf4;
+    --accent-light: #63b3ed;
+    --accent-dark: #bee3f8;
+
+    /* Subsystem colors adjusted for dark mode */
+    --pwr: #f6ad55;      /* orange */
+    --pcie: #fbd38d;     /* light orange */
+    --bmc: #b794f4;      /* purple */
+    --bios: #d6bcfa;     /* light purple */
+    --fw: #63b3ed;       /* blue */
+    --mech: #4fd1c5;     /* teal */
+    --thermal: #f6ad55;  /* orange */
+    --sys: #a0aec0;      /* slate gray */
   }
 
   html.dark-mode body {
@@ -132,7 +134,7 @@
   }
 
   html.dark-mode .gantt .bar.critical rect {
-    fill: #7f1d1d;
+    fill: url(#stripes);
   }
 
   html.dark-mode .gantt .bar .label:not([text-anchor="end"]) {
@@ -153,7 +155,15 @@
   }
 
   html.dark-mode .node.critical rect {
-    fill: #521c1c;
+    fill: url(#stripes);
+  }
+
+  .stripes-bg {
+    fill: var(--bg);
+  }
+  .stripes-line {
+    stroke: var(--crit);
+    stroke-opacity: 0.4;
   }
   
   html,body{height:100%}
@@ -736,7 +746,7 @@
   .node.critical rect{
     stroke: var(--crit);
     stroke-width: 2;
-    fill: #fed7d7;
+    fill: url(#stripes);
   }
   
   .node.selected rect{
@@ -794,7 +804,7 @@
   .gantt .bar.critical rect{
     stroke: var(--crit);
     stroke-width: 2;
-    fill: #fecaca;
+    fill: url(#stripes);
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
   }
   
@@ -841,6 +851,9 @@
   .taskNameBg{
     opacity: 0.95;
   }
+  html.dark-mode .taskNameBg {
+    opacity: 1;
+  }
   
   .gantt .handle{
     fill: #94a3b8;
@@ -863,6 +876,7 @@
   .gantt .milestone{
     stroke-width: 2;
     fill: var(--panel);
+    stroke-dasharray: 3 3;
   }
   
   .gantt .milestone.critical{
@@ -1915,6 +1929,14 @@
 
 </head>
 <body>
+  <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <pattern id="stripes" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <rect width="6" height="6" class="stripes-bg"/>
+        <line x1="0" y1="0" x2="0" y2="6" class="stripes-line" stroke-width="3"/>
+      </pattern>
+    </defs>
+  </svg>
   <a href="#appRoot" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-left">

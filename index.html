@@ -1913,7 +1913,7 @@
           <span class="btn-icon" aria-hidden="true">🖨️</span>
           Print / PDF
         </button>
-        <button class="btn" id="btnGuide" aria-label="Show user guide and help">
+        <button class="btn" id="btnGuide" aria-label="Show user guide and help" onclick="document.getElementById('guided-workflow').style.display = 'block';">
           <span class="btn-icon" aria-hidden="true">❓</span>
           Guide
         </button>
@@ -2210,7 +2210,7 @@
     <div data-action="adddep" role="menuitem" tabindex="0">Add dependency</div>
   </div>
 
-  <div class="modal" id="guideModal" aria-hidden="true" role="dialog" aria-labelledby="guideModalTitle" aria-describedby="guideModalDescription">
+  <div id="guided-workflow" style="display: none; position: fixed; top: 20%; left: 20%; width: 60%; background: white; border: 1px solid #ccc; padding: 20px; z-index: 1000; box-shadow: 0 0 10px rgba(0,0,0,0.5);" aria-hidden="true" role="dialog" aria-labelledby="guideModalTitle" aria-describedby="guideModalDescription">
     <div class="panel">
       <header>
         <h1 id="guideModalTitle" style="font-size:1rem">Guided Workflow</h1>
@@ -2237,7 +2237,7 @@
         <p>Create scenarios and set a baseline. Use <b>Compare</b> to see deltas.</p>
       </div>
               <div class="wizard-controls">
-          <button class="btn ghost" id="wzClose" aria-label="Close guided workflow">Close</button>
+          <button class="btn ghost" aria-label="Close guided workflow" onclick="document.getElementById('guided-workflow').style.display = 'none';">Close</button>
           <button class="btn" id="wzPrev" disabled aria-label="Go to previous step">Back</button>
           <button class="btn accent" id="wzNext" aria-label="Go to next step">Next</button>
         </div>
@@ -2891,9 +2891,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     });
 
     // Guide modal
-    (function(){ let step=1; const max=5; const modal=$('#guideModal'); function showStep(){ for(let i=1;i<=max;i++){ $('#wz'+i).style.display = (i===step)?'block':'none'; } $('#wzPrev').disabled = step===1; $('#wzNext').textContent = step===max? 'Done' : 'Next'; }
-      $('#btnGuide').onclick=()=>{ modal.style.display='flex'; step=1; showStep(); };
-      $('#wzClose').onclick=()=>{ modal.style.display='none'; };
+    (function(){ let step=1; const max=5; const modal=$('#guided-workflow'); function showStep(){ for(let i=1;i<=max;i++){ $('#wz'+i).style.display = (i===step)?'block':'none'; } $('#wzPrev').disabled = step===1; $('#wzNext').textContent = step===max? 'Done' : 'Next'; }
       $('#wzPrev').onclick=()=>{ if(step>1) step--; showStep(); };
       $('#wzNext').onclick=()=>{ if(step<max) step++; else modal.style.display='none'; showStep(); };
     })();

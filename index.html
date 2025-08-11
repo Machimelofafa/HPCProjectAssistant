@@ -49,20 +49,23 @@
   .legend .group{display:flex; gap:.35rem; align-items:center}
   .node{cursor:pointer}
   .node rect{fill:#fff; stroke:#cbd5e1; rx:8}
-  .node.critical rect{stroke:var(--crit)}
+  .node.critical rect{stroke:var(--crit); stroke-width:2; fill:#fee2e2}
   .node.selected rect{stroke:#0ea5e9; stroke-width:2}
   .node .title{font-weight:600}
   .edge{stroke:#cbd5e1; stroke-width:1.5}
-  .edge.critical{stroke:var(--crit)}
+  .edge.critical{stroke:var(--crit); stroke-width:2}
   .edge.arrow{marker-end:url(#arrow)}
   .gantt .bar{stroke:#cbd5e1; fill:#e2e8f0}
-  .gantt .bar.critical{stroke:#dc2626}
+  .gantt .bar.critical rect{stroke:var(--crit); stroke-width:2; fill:#fee2e2}
   .gantt .bar.selected rect{stroke:#0ea5e9; stroke-width:2}
   .gantt .bar .label{font-size:11px; fill:#334155}
   .gantt .handle{fill:#94a3b8; cursor:ew-resize}
   .gantt .bar.moved{filter:drop-shadow(0 0 10px rgba(14,165,233,.35))}
   .gantt .bar.invalid rect{stroke:var(--error) !important; fill:#fee2e2}
   .gantt .bar.valid rect{outline:2px solid #86efac}
+  .gantt .milestone{stroke-width:2; fill:#fff}
+  .gantt .milestone.critical{fill:#fee2e2; stroke:var(--crit)}
+  .gantt .bar .progress{opacity:.5}
   .axis{stroke:#e5e7eb}
   .axis text{fill:#475569; font-size:11px}
   .issues{display:flex; flex-direction:column; gap:.45rem}
@@ -207,6 +210,9 @@
           <label>Name prefix <input type="text" id="bulkPrefix" placeholder="e.g. [R1]"></label>
         </div>
         <div class="row">
+          <label>Progress (%) <input type="number" id="bulkPct" min="0" max="100" placeholder="0"></label>
+        </div>
+        <div class="row">
           <label>Add dependency token <input type="text" id="bulkAddDep" placeholder="e.g. FS:mobo_assembly+2d"></label>
           <label><input type="checkbox" id="bulkClearDeps"> clear all deps</label>
         </div>
@@ -292,7 +298,7 @@
       <section id="compare" class="view">
         <div class="focus">
           <div class="row" style="gap:.5rem; align-items:center">
-            <label>Baseline <select id="baselineSelect"></select></label>
+            <label>Baselines <select id="baselineSelect" multiple size="3"></select></label>
             <button class="btn small" id="btnSetBaseline">Use Selected</button>
           </div>
           <div class="cards" style="margin-top:.5rem">
@@ -609,12 +615,40 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis'); const ticks=10; for(let i=0;i<=ticks;i++){ const x=scale(i*(finish/ticks)); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = Math.round(i*(finish/ticks))+'d'; gAxis.appendChild(t); } svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',W); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
-    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) ); const bar=document.createElementNS('http://www.w3.org/2000/svg','g'); bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id); if(SEL.has(t.id)) bar.classList.add('selected'); const col=colorFor(t.subsystem); const rect=document.createElementNS("http://www.w3.org/2000/svg","rect"); rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("fill","#e2e8f0"); rect.setAttribute("style",`stroke:${col}`); bar.appendChild(rect); const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left); const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right); const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-6); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label); const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur); bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } }); bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); }); g.appendChild(bar); y+=rowH; });
+    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
+    const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
+    bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
+    if(SEL.has(t.id)) bar.classList.add('selected');
+    const col=colorFor(t.subsystem);
+    const isMilestone=(parseDurationStrict(t.duration).days||0)===0;
+    if(isMilestone){
+      bar.setAttribute('data-ms','1');
+      const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
+      diamond.setAttribute("x",x-6); diamond.setAttribute("y",y+2); diamond.setAttribute("width",12); diamond.setAttribute("height",12);
+      diamond.setAttribute("transform",`rotate(45 ${x} ${y+8})`);
+      diamond.setAttribute("class","milestone"+(t.critical?' critical':''));
+      diamond.setAttribute("style",`stroke:${col}`);
+      bar.appendChild(diamond);
+    }else{
+      const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("fill","#e2e8f0"); rect.setAttribute("style",`stroke:${col}`);
+      bar.appendChild(rect);
+      const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
+      if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
+      const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
+      const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
+    }
+    const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-6); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label);
+    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
+    if(!isMilestone){ const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); }
+    bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
+    bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+    g.appendChild(bar); y+=rowH; });
 
   MM_TASKS=tasksAll; MM_FINISH=finish; MM_W=W; MM_SCALE=scale; renderMiniMap();
 
   // drag
-  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
+  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
   svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
   };
   svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
@@ -671,10 +705,89 @@ function renderIssues(project, cpm, targetSel){
 }
 
 // ---------------------------- Scenarios (same as v7 + bugfix) ----------------------------
-const SC=(function(){ const scenarios={}; let current='Working'; let baseline=null; function snapshot(){ return SM.get(); } function saveAs(name){ scenarios[name]=clone(snapshot()); current=name; updateScenarioUI(); showToast(`Saved as "${name}"`); } function switchTo(name){ if(!scenarios[name]) return; SM.set(clone(scenarios[name])); current=name; updateScenarioUI(); showToast(`Switched to "${name}"`); } function get(name){ return scenarios[name]? clone(scenarios[name]): null; } function list(){ return Object.keys(scenarios); } function setBaseline(name){ if(!scenarios[name]) return; baseline=name; updateScenarioUI(); showToast(`Baseline set: ${name}`); } function getBaseline(){ return baseline; } return {saveAs, switchTo, get, list, setBaseline, getBaseline, current:()=>current} })();
-function updateScenarioUI(){ const sel=$('#scenarioSelect'); if(sel){ sel.innerHTML=''; const items=SC.list(); for(const name of items){ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt); } const badge=$('#scenarioBadge'); if(badge) badge.textContent = `Scenario: ${SC.current()}`; const bSel=$('#baselineSelect'); if(bSel){ bSel.innerHTML=''; for(const n of items){ const o=document.createElement('option'); o.value=n; o.textContent=n; bSel.appendChild(o); } } }
+const SC=(function(){
+  const scenarios={}; let current='Working'; let baselines=[];
+  function snapshot(){ return SM.get(); }
+  function saveAs(name){ scenarios[name]=clone(snapshot()); current=name; updateScenarioUI(); showToast(`Saved as "${name}"`); }
+  function switchTo(name){ if(!scenarios[name]) return; SM.set(clone(scenarios[name])); current=name; updateScenarioUI(); showToast(`Switched to "${name}"`); }
+  function get(name){ return scenarios[name]? clone(scenarios[name]): null; }
+  function list(){ return Object.keys(scenarios); }
+  function setBaselines(names){ baselines=names.filter(n=>scenarios[n]); updateScenarioUI(); showToast(`Baselines set: ${baselines.join(', ')||'none'}`); }
+  function getBaselines(){ return baselines.slice(); }
+  return {saveAs, switchTo, get, list, setBaselines, getBaselines, current:()=>current};
+})();
+function updateScenarioUI(){
+  const sel=$('#scenarioSelect');
+  if(sel){
+    sel.innerHTML='';
+    const items=SC.list();
+    for(const name of items){
+      const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt);
+    }
+    const badge=$('#scenarioBadge'); if(badge) badge.textContent = `Scenario: ${SC.current()}`;
+    const bSel=$('#baselineSelect');
+    if(bSel){
+      bSel.innerHTML='';
+      const bases=new Set(SC.getBaselines());
+      for(const n of items){
+        const o=document.createElement('option'); o.value=n; o.textContent=n; if(bases.has(n)) o.selected=true; bSel.appendChild(o);
+      }
+    }
+  }
 }
-function buildCompare(){ const baseName=SC.getBaseline(); if(!baseName){ $('#cmpList').innerHTML='<div class="issue sev-info"><div class="msg">Select a baseline scenario.</div></div>'; return; } const curProj=SM.get(); const baseProj=SC.get(baseName); if(!baseProj){ $('#cmpList').innerHTML='<div class="issue sev-error"><div class="msg">Baseline scenario missing.</div></div>'; return; } const A=computeCPM(baseProj); const B=computeCPM(curProj); const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[])); const calB=makeCalendar(curProj.calendar, new Set(curProj.holidays||[])); $('#cmpFinishA').textContent=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0)); $('#cmpFinishB').textContent=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0)); $('#cmpFinishDelta').textContent=String((B.finishDays||0)-(A.finishDays||0)); const critA=new Set(A.tasks.filter(t=>t.critical).map(t=>t.id)); const critB=new Set(B.tasks.filter(t=>t.critical).map(t=>t.id)); const critDelta = Math.abs(critA.size-critB.size); $('#cmpCritDelta').textContent=String(critDelta); const mapA=Object.fromEntries(A.tasks.map(t=>[t.id,t])); const mapB=Object.fromEntries(B.tasks.map(t=>[t.id,t])); const rows=[]; for(const id of Object.keys(mapB)){ const a=mapA[id]; const b=mapB[id]; if(!b) continue; const ds=(b.es||0)-(a? a.es||0: 0); const df=(b.ef||0)-(a? a.ef||0: 0); const dsl=(b.slack||0)-(a? a.slack||0: 0); rows.push({name:b.name||id, ds, df, dsl}); } rows.sort((x,y)=> Math.abs(y.df)-Math.abs(x.df)); const L=$('#cmpList'); L.innerHTML=''; for(const r of rows){ const div=document.createElement('div'); div.className='row'; div.innerHTML=`<span>${esc(r.name)}</span><span class="slack">Δstart ${r.ds}d • Δfinish ${r.df}d • Δslack ${r.dsl}d</span>`; L.appendChild(div);} }
+function buildCompare(){
+  const baseNames=SC.getBaselines();
+  if(baseNames.length===0){
+    $('#cmpList').innerHTML='<div class="issue sev-info"><div class="msg">Select baseline scenario(s).</div></div>';
+    return;
+  }
+  const curProj=SM.get();
+  const B=computeCPM(curProj);
+  const calB=makeCalendar(curProj.calendar, new Set(curProj.holidays||[]));
+  $('#cmpFinishB').textContent=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
+  const L=$('#cmpList');
+  L.innerHTML='';
+  baseNames.forEach((baseName, idx)=>{
+    const baseProj=SC.get(baseName);
+    if(!baseProj){
+      const div=document.createElement('div'); div.className='issue sev-error'; div.innerHTML=`<div class="msg">Baseline scenario missing: ${esc(baseName)}</div>`; L.appendChild(div); return;
+    }
+    const A=computeCPM(baseProj);
+    const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
+    const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
+    const delta=(B.finishDays||0)-(A.finishDays||0);
+    const critA=new Set(A.tasks.filter(t=>t.critical).map(t=>t.id));
+    const critB=new Set(B.tasks.filter(t=>t.critical).map(t=>t.id));
+    const critDelta=Math.abs(critA.size-critB.size);
+    if(idx===0){
+      $('#cmpFinishA').textContent=finishA;
+      $('#cmpFinishDelta').textContent=String(delta);
+      $('#cmpCritDelta').textContent=String(critDelta);
+    }
+    const header=document.createElement('div');
+    header.className='issue sev-info';
+    header.innerHTML=`<div class="msg"><b>${esc(baseName)}</b> • Δfinish ${delta}d • Δcritical ${critDelta}</div>`;
+    L.appendChild(header);
+    const mapA=Object.fromEntries(A.tasks.map(t=>[t.id,t]));
+    const mapB=Object.fromEntries(B.tasks.map(t=>[t.id,t]));
+    const rows=[];
+    for(const id of Object.keys(mapB)){
+      const a=mapA[id]; const b=mapB[id]; if(!b) continue;
+      const ds=(b.es||0)-(a? a.es||0:0);
+      const df=(b.ef||0)-(a? a.ef||0:0);
+      const dsl=(b.slack||0)-(a? a.slack||0:0);
+      rows.push({name:b.name||id, ds, df, dsl});
+    }
+    rows.sort((x,y)=> Math.abs(y.df)-Math.abs(x.df));
+    rows.forEach(r=>{
+      const div=document.createElement('div');
+      div.className='row';
+      div.innerHTML=`<span>${esc(r.name)}</span><span class="slack">Δstart ${r.ds}d • Δfinish ${r.df}d • Δslack ${r.dsl}d</span>`;
+      L.appendChild(div);
+    });
+  });
+}
+
 
 // ---------------------------- CSV / IO ----------------------------
 async function saveFile(json){ const blob=new Blob([json],{type:'application/json'}); if(window.showSaveFilePicker){ try{ const handle=await showSaveFilePicker({suggestedName:'project.hpc.json', types:[{description:'JSON', accept:{'application/json':['.json']}}]}); const w=await handle.createWritable(); await w.write(blob); await w.close(); return; }catch(e){ console.warn(e);} } const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='project.hpc.json'; a.click(); URL.revokeObjectURL(a.href); }
@@ -771,20 +884,23 @@ function duplicateSelected(){
 function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelBadge(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
   for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
-    const dur=parseDurationStrict(t.duration).days||0; row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
+    const dur=parseDurationStrict(t.duration).days||0;
+    row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
       <input type="number" min="0" data-id="${id}" data-field="duration" value="${dur}">
+      <input type="number" min="0" max="100" data-id="${id}" data-field="pct" value="${t.pct||0}">
       <input type="text" data-id="${id}" data-field="phase" value="${esc(t.phase||'')}">
       <select data-id="${id}" data-field="subsystem">${SUBS.map(sub=>`<option${sub===t.subsystem?' selected':''}>${esc(sub)}</option>`).join('')}</select>
       <select data-id="${id}" data-field="active"><option value="true"${t.active!==false?' selected':''}>true</option><option value="false"${t.active===false?' selected':''}>false</option></select>`;
     box.appendChild(row);
   }
-  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); SM.updateTask(id,{[field]:val}); refresh(); }); });
+  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}); refresh(); }); });
 }
 function updateSelBadge(){ $('#selBadge').textContent = `${SEL.size} selected`; $('#bulkCount').textContent=String(SEL.size); $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size)); renderInlineEditor(); }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
     const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDurationStrict(t.duration).days + n); }
     const shift=$('#bulkShift').value; if(shift!==''){ const d=parseInt(shift,10)||0; const es = t.es||0; t.startConstraint = {type:'SNET', day: Math.max(0, es + d)}; }
+    const pctV=$('#bulkPct').value; if(pctV!==''){ const n=Math.min(100, Math.max(0, parseInt(pctV,10)||0)); t.pct=n; }
   }
   SM.replaceTasks(s.tasks); showToast(`Bulk applied to ${changed} tasks`); refresh(); }
 
@@ -834,16 +950,16 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
 
     // bulk
-    $('#btnApplyBulk').onclick=applyBulk; $('#btnBulkReset').onclick=()=>{ ['bulkPhase','bulkSub','bulkActive','bulkDur','bulkDurMode','bulkPrefix','bulkAddDep','bulkClearDeps','bulkShift'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }); };
+    $('#btnApplyBulk').onclick=applyBulk; $('#btnBulkReset').onclick=()=>{ ['bulkPhase','bulkSub','bulkActive','bulkDur','bulkDurMode','bulkPrefix','bulkPct','bulkAddDep','bulkClearDeps','bulkShift'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }); };
 
     // scenarios
     updateScenarioUI();
     $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ refresh(); });
     $('#btnScenarioNew') && ($('#btnScenarioNew').onclick=()=>{ const name=prompt('New scenario name'); if(!name) return; SC.saveAs(name); refresh(); });
     $('#btnScenarioSaveAs') && ($('#btnScenarioSaveAs').onclick=()=>{ const name=prompt('Save current as…'); if(!name) return; SC.saveAs(name); refresh(); });
-    $('#btnScenarioBaseline') && ($('#btnScenarioBaseline').onclick=()=>{ const name=$('#scenarioSelect').value; if(!name) return; SC.setBaseline(name); buildCompare(); });
+    $('#btnScenarioBaseline') && ($('#btnScenarioBaseline').onclick=()=>{ const name=$('#scenarioSelect').value; if(!name) return; const cur=SC.getBaselines(); if(!cur.includes(name)) cur.push(name); SC.setBaselines(cur); buildCompare(); });
     $('#btnOpenCompare') && ($('#btnOpenCompare').onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $('[data-tab="compare"]').classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#compare').classList.add('active'); buildCompare(); });
-    $('#btnSetBaseline').onclick=()=>{ const sel=$('#baselineSelect'); if(!sel.value) return; SC.setBaseline(sel.value); buildCompare(); };
+    $('#btnSetBaseline').onclick=()=>{ const sel=$('#baselineSelect'); const vals=Array.from(sel.selectedOptions).map(o=>o.value); SC.setBaselines(vals); buildCompare(); };
 
     // I/O
     $('#btnExportCSV').onclick=exportCSV;

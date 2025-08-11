@@ -692,23 +692,28 @@
   /* Enhanced Gantt chart */
   .gantt .bar{
     stroke: var(--line);
-    fill: #a0aec0;
     transition: all 0.2s ease;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
   }
-  
 
+  .gantt .bar rect {
+    fill: var(--panel);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+  }
   
   .gantt .bar:hover{
     stroke: var(--accent);
     stroke-width: 2;
+  }
+
+  .gantt .bar:hover rect{
     filter: drop-shadow(0 2px 4px rgba(49, 130, 206, 0.2));
   }
   
   .gantt .bar.critical rect{
     stroke: var(--crit);
     stroke-width: 2;
-    fill: #f56565;
+    fill: #fed7d7;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
   }
   
   .gantt .bar.selected rect{
@@ -743,8 +748,9 @@
   /* Duration and percentage labels - make them more readable */
   .gantt .bar .label:not([text-anchor="end"]){
     font-size: 13px;
-    fill: var(--ink);
+    fill: white;
     font-weight: 700;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
   }
   
   /* Task name background styling */

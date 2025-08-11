@@ -645,29 +645,25 @@
   .gantt .bar text.label[text-anchor="end"]{
     font-size: 14px;
     fill: var(--ink);
-    font-weight: 600;
-    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
-    filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.9));
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 1);
+    filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 1));
+    dominant-baseline: middle;
+    text-rendering: optimizeLegibility;
   }
   
   /* Duration and percentage labels - make them more readable */
   .gantt .bar .label:not([text-anchor="end"]){
     font-size: 12px;
     fill: var(--ink);
-    font-weight: 600;
-    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
-  }
-  
-  /* Ensure task names have enough space and are fully visible */
-  .gantt .bar text.label[text-anchor="end"]{
-    dominant-baseline: middle;
-    text-rendering: optimizeLegibility;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 1);
   }
   
   /* Task name background styling */
   .taskNameBg{
-    opacity: 0.9;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+    opacity: 0.95;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15));
   }
   
   .gantt .handle{
@@ -712,6 +708,21 @@
     font-size: 12px;
     font-weight: 600;
     font-family: var(--font-family);
+  }
+  
+  /* Ensure all timeline text is highly readable */
+  #timeline svg text {
+    font-weight: 600;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Task labels specifically */
+  #timeline .gantt .bar text.label {
+    font-weight: 700;
+    fill: var(--ink);
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 1);
   }
   
   /* Enhanced issues */
@@ -1044,6 +1055,7 @@
     fill: #f8fafc;
     stroke: #e2e8f0;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
+    opacity: 0.8;
   }
   
   .groupLabel{
@@ -1959,7 +1971,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis'); const ticks=10; for(let i=0;i<=ticks;i++){ const x=scale(i*(finish/ticks)); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = Math.round(i*(finish/ticks))+'d'; gAxis.appendChild(t); } svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',W); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
+  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
@@ -1990,7 +2002,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     nameBg.setAttribute("y", y-2);
     nameBg.setAttribute("width", nameWidth);
     nameBg.setAttribute("height", 20);
-    nameBg.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+    nameBg.setAttribute("fill", "rgba(255, 255, 255, 0.95)");
     nameBg.setAttribute("rx", "4");
     nameBg.setAttribute("class", "taskNameBg");
     bar.appendChild(nameBg);

@@ -36,10 +36,18 @@
     --thermal: #68d391;
     --sys: #a0aec0;
     
-    /* Enhanced shadows and effects */
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      /* Enhanced shadows and effects */
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  
+  /* Performance optimizations */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  
+  /* Reduced motion support */
+  --motion-reduce: 0.01ms;
     
     /* Typography improvements */
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -198,6 +206,58 @@
     border: 1px solid var(--line);
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--radius-md);
+    transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-normal), transform var(--transition-normal), box-shadow var(--transition-normal);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    will-change: transform;
+  }
+  
+  .btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .btn:active {
+    transform: translateY(0);
+  }
+  
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  .btn.ghost {
+    background: transparent;
+    border-color: transparent;
+  }
+  
+  .btn.ghost:hover {
+    background: rgba(49, 130, 206, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  
+  .btn.accent {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  
+  .btn.accent:hover {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+  }
+  
+  .btn.small {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
     cursor: pointer;
     box-shadow: var(--shadow);
     font-size: var(--font-size-sm);
@@ -332,8 +392,9 @@
     border-radius: var(--radius-md);
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: var(--font-size-sm);
-    transition: all 0.2s ease;
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform var(--transition-normal);
     width: 100%;
+    will-change: transform;
   }
   
   .form-input:focus {
@@ -341,6 +402,53 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
     transform: translateY(-1px);
+  }
+  
+  .form-input:invalid {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  }
+  
+  .form-input:disabled {
+    background: #f8fafc;
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  
+  /* Enhanced form validation feedback */
+  .form-input.error {
+    border-color: var(--error);
+    background: #fef2f2;
+  }
+  
+  .form-input.success {
+    border-color: var(--success);
+    background: #f0fdf4;
+  }
+  
+  .form-input.warning {
+    border-color: var(--warning);
+    background: #fffbeb;
+  }
+  
+  /* Form field help text */
+  .form-help {
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    margin-top: var(--spacing-xs);
+    line-height: 1.4;
+  }
+  
+  .form-help.error {
+    color: var(--error);
+  }
+  
+  .form-help.success {
+    color: var(--success);
+  }
+  
+  .form-help.warning {
+    color: var(--warning);
   }
   
   .search-container {
@@ -406,8 +514,9 @@
     font-size: var(--font-size-sm);
     background: var(--panel);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color var(--transition-normal), border-color var(--transition-normal), transform var(--transition-normal);
     font-weight: 500;
+    will-change: transform;
   }
   
   .tag:hover{
@@ -821,15 +930,17 @@
     margin-bottom: var(--spacing-2xl);
   }
   
+  /* Base card styles */
   .card{
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
-    transition: all 0.2s ease;
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
     box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
+    will-change: transform;
   }
   
   .card::before {
@@ -850,10 +961,11 @@
     border-color: var(--accent);
   }
   
-    .card:hover::before {
+  .card:hover::before {
     opacity: 1;
   }
   
+  /* Metric card variant */
   .metric-card {
     display: flex;
     align-items: center;
@@ -919,6 +1031,8 @@
     transform: translateX(4px);
     box-shadow: var(--shadow);
     border-bottom-color: var(--accent);
+    transition: background-color var(--transition-normal), transform var(--transition-normal), box-shadow var(--transition-normal), border-bottom-color var(--transition-normal);
+    will-change: transform;
   }
   
   .row .slack{
@@ -937,8 +1051,9 @@
     font-size: var(--font-size-sm);
     color: var(--muted);
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    transition: all 0.2s ease;
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    will-change: transform;
   }
   
   .kbd:hover{
@@ -947,7 +1062,7 @@
     border-color: var(--accent);
   }
   
-  /* Enhanced hints and toasts */
+  /* Enhanced hints and toasts with accessibility */
   .hint{
     position: fixed;
     z-index: 10;
@@ -961,6 +1076,75 @@
     display: none;
     backdrop-filter: blur(8px);
     animation: slideIn 0.3s ease-out;
+    max-width: 300px;
+    word-wrap: break-word;
+  }
+  
+  /* Screen reader only text */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  
+  /* Enhanced focus indicators for keyboard navigation */
+  .btn:focus-visible,
+  .form-input:focus-visible,
+  select:focus-visible,
+  .tab:focus-visible,
+  .tag:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.1);
+  }
+  
+  /* Focus management for interactive elements */
+  .tab:focus-visible {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
+  
+  .tag:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+  }
+  
+  /* Enhanced keyboard navigation for lists */
+  .list .row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    background: var(--accent-light);
+  }
+  
+  /* Focus management for cards */
+  .card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.1);
+  }
+  
+  /* Skip to main content link */
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 6px;
+    background: var(--accent);
+    color: white;
+    padding: 8px;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    z-index: 1000;
+    transition: top 0.3s;
+  }
+  
+  .skip-link:focus {
+    top: 6px;
   }
   
   @keyframes slideIn {
@@ -971,6 +1155,90 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+  
+  /* Enhanced animations for better UX */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  /* Animation classes for dynamic content */
+  .animate-fade-in {
+    animation: fadeIn var(--transition-normal) ease-out;
+  }
+  
+  .animate-slide-in-left {
+    animation: slideInLeft var(--transition-normal) ease-out;
+  }
+  
+  .animate-slide-in-right {
+    animation: slideInRight var(--transition-normal) ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn var(--transition-normal) ease-out;
+  }
+  
+  /* Staggered animations for lists */
+  .list .row:nth-child(1) { animation-delay: 0.1s; }
+  .list .row:nth-child(2) { animation-delay: 0.2s; }
+  .list .row:nth-child(3) { animation-delay: 0.3s; }
+  .list .row:nth-child(4) { animation-delay: 0.4s; }
+  .list .row:nth-child(5) { animation-delay: 0.5s; }
+  
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: var(--motion-reduce) !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: var(--motion-reduce) !important;
+    }
+    
+    .card:hover,
+    .btn:hover,
+    .list .row:hover {
+      transform: none !important;
     }
   }
   
@@ -1005,8 +1273,9 @@
     opacity: 0.9;
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow);
-    transition: all 0.2s ease;
+    transition: opacity var(--transition-normal), transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
     cursor: pointer;
+    will-change: transform;
   }
   
   .mini-map:hover{
@@ -1032,9 +1301,10 @@
   .ctx-menu div{
     padding: var(--spacing-sm) var(--spacing-lg);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color var(--transition-normal), transform var(--transition-normal), color var(--transition-normal);
     border-radius: var(--radius-sm);
     margin: var(--spacing-xs) var(--spacing-sm);
+    will-change: transform;
   }
   
   .ctx-menu div:hover{
@@ -1065,6 +1335,45 @@
     font-family: var(--font-family);
   }
   
+  /* Enhanced loading states */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    gap: var(--spacing-lg);
+  }
+  
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--line);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .loading-tip {
+    background: var(--accent-light);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    max-width: 400px;
+    font-size: var(--font-size-sm);
+  }
+  
+  .tip-icon {
+    margin-right: var(--spacing-xs);
+    opacity: 0.7;
+  }
+  
   /* Enhanced bulk edit section */
   .bulk{
     display: grid;
@@ -1092,11 +1401,101 @@
     border-color: var(--accent);
     transform: translateY(-1px);
     box-shadow: var(--shadow);
+    transition: background-color var(--transition-normal), border-color var(--transition-normal), transform var(--transition-normal), box-shadow var(--transition-normal);
+    will-change: transform;
   }
   
   .bulk .row-3{
     grid-template-columns: 1fr 1fr 1fr;
   }
+  
+  /* Utility classes for better maintainability */
+  .text-center { text-align: center; }
+  .text-left { text-align: left; }
+  .text-right { text-align: right; }
+  
+  .font-bold { font-weight: 700; }
+  .font-semibold { font-weight: 600; }
+  .font-medium { font-weight: 500; }
+  .font-normal { font-weight: 400; }
+  
+  .text-sm { font-size: var(--font-size-sm); }
+  .text-md { font-size: var(--font-size-md); }
+  .text-lg { font-size: var(--font-size-lg); }
+  .text-xl { font-size: var(--font-size-xl); }
+  
+  .text-muted { color: var(--muted); }
+  .text-accent { color: var(--accent); }
+  .text-success { color: var(--success); }
+  .text-warning { color: var(--warning); }
+  .text-error { color: var(--error); }
+  
+  .bg-panel { background: var(--panel); }
+  .bg-accent-light { background: var(--accent-light); }
+  .bg-success-light { background: #f0fdf4; }
+  .bg-warning-light { background: #fffbeb; }
+  .bg-error-light { background: #fef2f2; }
+  
+  .border { border: 1px solid var(--line); }
+  .border-accent { border-color: var(--accent); }
+  .border-success { border-color: var(--success); }
+  .border-warning { border-color: var(--warning); }
+  .border-error { border-color: var(--error); }
+  
+  .rounded-sm { border-radius: var(--radius-sm); }
+  .rounded-md { border-radius: var(--radius-md); }
+  .rounded-lg { border-radius: var(--radius-lg); }
+  .rounded-full { border-radius: 9999px; }
+  
+  .shadow-sm { box-shadow: var(--shadow-sm); }
+  .shadow { box-shadow: var(--shadow); }
+  .shadow-md { box-shadow: var(--shadow-md); }
+  .shadow-lg { box-shadow: var(--shadow-lg); }
+  .shadow-xl { box-shadow: var(--shadow-xl); }
+  
+  .p-xs { padding: var(--spacing-xs); }
+  .p-sm { padding: var(--spacing-sm); }
+  .p-md { padding: var(--spacing-md); }
+  .p-lg { padding: var(--spacing-lg); }
+  .p-xl { padding: var(--spacing-xl); }
+  
+  .m-xs { margin: var(--spacing-xs); }
+  .m-sm { margin: var(--spacing-sm); }
+  .m-md { margin: var(--spacing-md); }
+  .m-lg { margin: var(--spacing-lg); }
+  .m-xl { margin: var(--spacing-xl); }
+  
+  .flex { display: flex; }
+  .flex-col { flex-direction: column; }
+  .flex-row { flex-direction: row; }
+  .items-center { align-items: center; }
+  .items-start { align-items: flex-start; }
+  .items-end { align-items: flex-end; }
+  .justify-center { justify-content: center; }
+  .justify-between { justify-content: space-between; }
+  .justify-start { justify-content: flex-start; }
+  .justify-end { justify-content: flex-end; }
+  
+  .hidden { display: none; }
+  .block { display: block; }
+  .inline-block { display: inline-block; }
+  .inline { display: inline; }
+  
+  .w-full { width: 100%; }
+  .w-auto { width: auto; }
+  .h-full { height: 100%; }
+  .h-auto { height: auto; }
+  
+  .cursor-pointer { cursor: pointer; }
+  .cursor-not-allowed { cursor: not-allowed; }
+  .cursor-default { cursor: default; }
+  
+  .select-none { user-select: none; }
+  .select-text { user-select: text; }
+  
+  .overflow-hidden { overflow: hidden; }
+  .overflow-auto { overflow: auto; }
+  .overflow-scroll { overflow: scroll; }
   
   /* Enhanced inline edit */
   .inline-edit{
@@ -1109,6 +1508,11 @@
     grid-template-columns: 1fr 60px 1fr 1fr 60px;
     gap: var(--spacing-sm);
     align-items: center;
+    transition: background-color var(--transition-normal);
+  }
+  
+  .inline-edit .row:hover {
+    background: var(--accent-light);
   }
   
   /* Enhanced modal */
@@ -1209,6 +1613,135 @@
       width: 100%;
       justify-content: center;
       margin-top: var(--spacing-sm);
+    }
+    
+    /* Enhanced mobile navigation */
+    .legend {
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    
+    .legend .group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .legend .group > * {
+      width: 100%;
+      text-align: center;
+    }
+    
+    /* Mobile-optimized form inputs */
+    .form-input {
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    /* Mobile-optimized buttons */
+    .btn {
+      min-height: 44px; /* Touch-friendly sizing */
+      padding: var(--spacing-sm) var(--spacing-lg);
+    }
+    
+    /* Mobile-optimized context menu */
+    .ctx-menu {
+      min-width: 200px;
+      font-size: var(--font-size-md);
+    }
+    
+    .ctx-menu div {
+      padding: var(--spacing-md) var(--spacing-lg);
+    }
+  }
+  
+  /* Enhanced tablet breakpoint */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .layout {
+      grid-template-columns: 300px 1fr;
+    }
+    
+    .cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .subsys {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  /* Enhanced large screen optimizations */
+  @media (min-width: 1025px) {
+    .layout {
+      grid-template-columns: 350px 1fr;
+    }
+    
+    .cards {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .subsys {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  /* Enhanced print styles */
+  @media print {
+    * {
+      background: transparent !important;
+      color: black !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+    
+    .layout {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    
+    aside {
+      display: none;
+    }
+    
+    .tabs {
+      display: none;
+    }
+    
+    .legend {
+      display: none;
+    }
+    
+    .btn {
+      display: none;
+    }
+    
+    .ctx-menu {
+      display: none;
+    }
+    
+    .toast {
+      display: none;
+    }
+    
+    .hint {
+      display: none;
+    }
+    
+    .modal {
+      display: none;
+    }
+    
+    #timeline {
+      page-break-inside: avoid;
+    }
+    
+    .card {
+      page-break-inside: avoid;
+      border: 1px solid #ccc;
+      margin-bottom: 1em;
+    }
+    
+    .list .row {
+      page-break-inside: avoid;
+      border-bottom: 1px solid #ccc;
     }
   }
   
@@ -1339,10 +1872,11 @@
 </style>
 </head>
 <body>
+  <a href="#appRoot" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-left">
       <h1>
-        <span class="title-icon">📊</span>
+        <span class="title-icon" aria-hidden="true">📊</span>
         HPC/AI Project Planner
         <small class="subtitle">— offline • single file</small>
       </h1>
@@ -1350,46 +1884,46 @@
     
     <div class="header-center">
       <div class="button-group primary">
-        <button class="btn" id="btnNew">
-          <span class="btn-icon">✨</span>
+        <button class="btn" id="btnNew" aria-label="Create new project">
+          <span class="btn-icon" aria-hidden="true">✨</span>
           New
         </button>
-        <button class="btn" id="btnLoad">
-          <span class="btn-icon">📁</span>
+        <button class="btn" id="btnLoad" aria-label="Open existing project file">
+          <span class="btn-icon" aria-hidden="true">📁</span>
           Open…
         </button>
-        <button class="btn" id="btnSave">
-          <span class="btn-icon">💾</span>
+        <button class="btn" id="btnSave" aria-label="Save current project">
+          <span class="btn-icon" aria-hidden="true">💾</span>
           Save
         </button>
       </div>
       
       <div class="button-group secondary">
-        <button class="btn ghost" id="btnExportJSON">
-          <span class="btn-icon">📤</span>
+        <button class="btn ghost" id="btnExportJSON" aria-label="Export project data as JSON">
+          <span class="btn-icon" aria-hidden="true">📤</span>
           Export JSON
         </button>
-        <button class="btn ghost" id="btnExportCSV">
-          <span class="btn-icon">📊</span>
+        <button class="btn ghost" id="btnExportCSV" aria-label="Export project data as CSV">
+          <span class="btn-icon" aria-hidden="true">📊</span>
           Export CSV
         </button>
       </div>
       
       <div class="button-group actions">
-        <button class="btn small" id="btnUndo" title="Ctrl+Z">
-          <span class="btn-icon">↶</span>
+        <button class="btn small" id="btnUndo" title="Ctrl+Z" aria-label="Undo last action">
+          <span class="btn-icon" aria-hidden="true">↶</span>
           Undo
         </button>
-        <button class="btn small" id="btnRedo" title="Ctrl+Y">
-          <span class="btn-icon">↷</span>
+        <button class="btn small" id="btnRedo" title="Ctrl+Y" aria-label="Redo last undone action">
+          <span class="btn-icon" aria-hidden="true">↷</span>
           Redo
         </button>
-        <button class="btn accent" id="btnPrint">
-          <span class="btn-icon">🖨️</span>
+        <button class="btn accent" id="btnPrint" aria-label="Print project or export as PDF">
+          <span class="btn-icon" aria-hidden="true">🖨️</span>
           Print / PDF
         </button>
-        <button class="btn" id="btnGuide">
-          <span class="btn-icon">❓</span>
+        <button class="btn" id="btnGuide" aria-label="Show user guide and help">
+          <span class="btn-icon" aria-hidden="true">❓</span>
           Guide
         </button>
       </div>
@@ -1397,32 +1931,32 @@
     
     <div class="right">
       <div class="status-indicators">
-        <span class="pill status-pill" id="selBadge">
-          <span class="pill-icon">🎯</span>
+        <span class="pill status-pill" id="selBadge" role="status" aria-live="polite">
+          <span class="pill-icon" aria-hidden="true">🎯</span>
           0 selected
         </span>
-        <span class="pill status-pill" id="scenarioBadge">
-          <span class="pill-icon">⚙️</span>
+        <span class="pill status-pill" id="scenarioBadge" role="status" aria-live="polite">
+          <span class="pill-icon" aria-hidden="true">⚙️</span>
           Scenario: Working
         </span>
       </div>
       
       <div class="badges">
-        <span class="pill feature-pill">🚀 Enhanced UI</span>
-        <span class="pill feature-pill">📈 CPM</span>
-        <span class="pill feature-pill">🔄 Scenarios</span>
-        <span class="pill feature-pill">✅ Validation</span>
-        <span class="pill feature-pill">🎨 Modern UX</span>
+        <span class="pill feature-pill" aria-label="Enhanced user interface features">🚀 Enhanced UI</span>
+        <span class="pill feature-pill" aria-label="Critical Path Method analysis">📈 CPM</span>
+        <span class="pill feature-pill" aria-label="Multiple scenario support">🔄 Scenarios</span>
+        <span class="pill feature-pill" aria-label="Data validation and error checking">✅ Validation</span>
+        <span class="pill feature-pill" aria-label="Modern user experience design">🎨 Modern UX</span>
       </div>
     </div>
   </header>
   <div id="boot">
     <div class="loading-container">
-      <div class="loading-spinner"></div>
+      <div class="loading-spinner" role="status" aria-label="Loading application"></div>
       <h2>Loading HPC/AI Project Planner</h2>
       <p>Initializing application components...</p>
       <div class="loading-tip">
-        <span class="tip-icon">💡</span>
+        <span class="tip-icon" aria-hidden="true">💡</span>
         If this persists, press F12 → Console and share any red error message.
       </div>
     </div>
@@ -1430,73 +1964,78 @@
   <div id="fatal"></div>
   <div class="layout" style="display:none" id="appRoot">
     <aside>
-      <h2><span class="section-icon">📅</span> Project Settings</h2>
+      <h2><span class="section-icon" aria-hidden="true">📅</span> Project Settings</h2>
       <div class="row">
         <label class="form-label">
-          <span class="label-icon">📅</span>
+          <span class="label-icon" aria-hidden="true">📅</span>
           Start date
-          <input type="date" id="startDate" class="form-input">
+          <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp">
         </label>
+        <div id="startDateHelp" class="sr-only">Select the project start date</div>
       </div>
       <div class="row">
         <label class="form-label">
-          <span class="label-icon">🗓️</span>
+          <span class="label-icon" aria-hidden="true">🗓️</span>
           Calendar
-          <select id="calendarMode" class="form-input">
+          <select id="calendarMode" class="form-input" aria-describedby="calendarModeHelp">
             <option value="workdays">Working days (Mon–Fri + holidays)</option>
             <option value="calendar">Calendar days</option>
           </select>
         </label>
+        <div id="calendarModeHelp" class="sr-only">Choose between working days or calendar days for project scheduling</div>
       </div>
       <div class="row" style="align-items:flex-start">
         <label class="form-label full-width">
-          <span class="label-icon">🎉</span>
+          <span class="label-icon" aria-hidden="true">🎉</span>
           Holidays (YYYY‑MM‑DD)
-          <textarea id="holidayInput" placeholder="2025-01-01, 2025-05-01, 2025-12-25" class="form-input"></textarea>
+          <textarea id="holidayInput" placeholder="2025-01-01, 2025-05-01, 2025-12-25" class="form-input" aria-describedby="holidayInputHelp"></textarea>
         </label>
+        <div id="holidayInputHelp" class="sr-only">Enter holiday dates in YYYY-MM-DD format, separated by commas</div>
       </div>
       <div class="row">
         <label class="form-label">
-          <span class="label-icon">⏰</span>
+          <span class="label-icon" aria-hidden="true">⏰</span>
           Slack threshold
-          <input type="number" id="slackThreshold" min="0" value="2" class="form-input"> days
+          <input type="number" id="slackThreshold" min="0" value="2" class="form-input" aria-describedby="slackThresholdHelp"> days
         </label>
+        <div id="slackThresholdHelp" class="sr-only">Set the minimum slack threshold in days for highlighting critical paths</div>
       </div>
 
-      <h2><span class="section-icon">🔍</span> Filter & Group</h2>
-      <div class="row">
-        <div class="search-container">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="filterText" placeholder="Filter by name or phase…" class="form-input search-input">
+      <h2><span class="section-icon" aria-hidden="true">🔍</span> Filter & Group</h2>
+              <div class="row">
+          <div class="search-container">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input type="text" id="filterText" placeholder="Filter by name or phase…" class="form-input search-input" aria-label="Filter tasks by name or phase">
+          </div>
         </div>
-      </div>
       <div class="row">
         <label class="form-label">
-          <span class="label-icon">📊</span>
+          <span class="label-icon" aria-hidden="true">📊</span>
           Group by
-          <select id="groupBy" class="form-input">
+          <select id="groupBy" class="form-input" aria-describedby="groupByHelp">
             <option value="none">None</option>
             <option value="phase">Phase</option>
             <option value="subsystem">Subsystem</option>
           </select>
         </label>
+        <div id="groupByHelp" class="sr-only">Choose how to group and organize tasks in the display</div>
       </div>
       <div class="row filter-actions">
-        <button class="btn small" id="btnFilterClear">
-          <span class="btn-icon">🧹</span>
+        <button class="btn small" id="btnFilterClear" aria-label="Clear all active filters">
+          <span class="btn-icon" aria-hidden="true">🧹</span>
           Clear filters
         </button>
-        <button class="btn small" id="btnSelectFiltered">
-          <span class="btn-icon">✅</span>
+        <button class="btn small" id="btnSelectFiltered" aria-label="Select all filtered tasks">
+          <span class="btn-icon" aria-hidden="true">✅</span>
           Select filtered
         </button>
-        <button class="btn small" id="btnClearSel">
-          <span class="btn-icon">❌</span>
+        <button class="btn small" id="btnClearSel" aria-label="Clear current task selection">
+          <span class="btn-icon" aria-hidden="true">❌</span>
           Clear selection
         </button>
       </div>
 
-      <h2><span class="section-icon">🎨</span> Subsystem Legend</h2>
+      <h2><span class="section-icon" aria-hidden="true">🎨</span> Subsystem Legend</h2>
       <div class="row subsystem-controls">
         <button class="btn small" id="btnSubAll">
           <span class="btn-icon">✅</span>
@@ -1572,14 +2111,14 @@
       <div class="issues" id="issues"></div>
     </aside>
 
-    <main>
-      <div class="tabs">
-        <div class="tab active" data-tab="timeline">Timeline</div>
-        <div class="tab" data-tab="graph">Dependency Graph</div>
-        <div class="tab" data-tab="focus">Where to focus</div>
-        <div class="tab" data-tab="compare">Compare</div>
+    <main role="main" aria-label="Project planning workspace">
+      <div class="tabs" role="tablist" aria-label="Project views">
+        <div class="tab active" data-tab="timeline" role="tab" aria-selected="true" aria-controls="timeline">Timeline</div>
+        <div class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph">Dependency Graph</div>
+        <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
+        <div class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare">Compare</div>
       </div>
-      <div class="legend">
+      <div class="legend" role="region" aria-label="Chart legend and controls">
         <div class="group">
           <span class="pill">Links: FS/SS/FF/SF + \+/- lag (d or w)</span>
           <span class="pill">Constraints: MSO / SNET</span>
@@ -1587,82 +2126,82 @@
         </div>
         <div class="group" style="margin-left:auto">
           <span>Timeline</span>
-          <button class="btn small" id="zoomOutTL">−</button>
-          <button class="btn small" id="zoomInTL">+</button>
-          <button class="btn small" id="zoomResetTL">Fit</button>
+          <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
+          <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
+          <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
           <span style="margin-left:.5rem">Graph</span>
-          <button class="btn small" id="zoomOutGR">−</button>
-          <button class="btn small" id="zoomInGR">+</button>
-          <button class="btn small" id="zoomResetGR">Fit</button>
+          <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
+          <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
+          <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
         </div>
       </div>
-      <section id="timeline" class="view active">
-        <svg id="gantt" class="gantt"></svg>
-        <svg id="miniMap" class="mini-map"></svg>
+      <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view">
+        <svg id="gantt" class="gantt" role="img" aria-label="Gantt chart showing project timeline"></svg>
+        <svg id="miniMap" class="mini-map" role="img" aria-label="Mini map for timeline navigation"></svg>
       </section>
-      <section id="graph" class="view">
-        <svg id="graphSvg"></svg>
+      <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view">
+        <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships"></svg>
       </section>
-      <section id="focus" class="view">
+      <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view">
         <div class="focus">
           <div class="focus-header">
-            <h2><span class="section-icon">🎯</span> Project Overview</h2>
+            <h2><span class="section-icon" aria-hidden="true">🎯</span> Project Overview</h2>
             <p class="focus-description">Key metrics and areas requiring attention</p>
           </div>
           
           <div class="cards">
-            <div class="card metric-card">
-              <div class="card-icon">📅</div>
+            <div class="card metric-card" role="region" aria-label="Planned finish date">
+              <div class="card-icon" aria-hidden="true">📅</div>
               <div class="card-content">
                 <div class="card-label">Planned Finish</div>
-                <div class="metric" id="finishMetric">—</div>
+                <div class="metric" id="finishMetric" aria-live="polite">—</div>
               </div>
             </div>
-            <div class="card metric-card">
-              <div class="card-icon">🚨</div>
+            <div class="card metric-card" role="region" aria-label="Critical tasks count">
+              <div class="card-icon" aria-hidden="true">🚨</div>
               <div class="card-content">
                 <div class="card-label">Critical Tasks</div>
-                <div class="metric" id="critMetric">—</div>
+                <div class="metric" id="critMetric" aria-live="polite">—</div>
               </div>
             </div>
-            <div class="card metric-card">
-              <div class="card-icon">📋</div>
+            <div class="card metric-card" role="region" aria-label="Total tasks count">
+              <div class="card-icon" aria-hidden="true">📋</div>
               <div class="card-content">
                 <div class="card-label">Total Tasks</div>
-                <div class="metric" id="countMetric">—</div>
+                <div class="metric" id="countMetric" aria-live="polite">—</div>
               </div>
             </div>
-            <div class="card metric-card">
-              <div class="card-icon">⚡</div>
+            <div class="card metric-card" role="region" aria-label="Change impact assessment">
+              <div class="card-icon" aria-hidden="true">⚡</div>
               <div class="card-content">
                 <div class="card-label">Change Impact</div>
-                <div class="metric" id="impactMetric">—</div>
+                <div class="metric" id="impactMetric" aria-live="polite">—</div>
               </div>
             </div>
           </div>
           
           <div class="focus-section">
-            <h3><span class="section-icon">⚠️</span> Near‑critical (slack ≤ threshold)</h3>
-            <div class="list" id="nearList"></div>
+            <h3><span class="section-icon" aria-hidden="true">⚠️</span> Near‑critical (slack ≤ threshold)</h3>
+            <div class="list" id="nearList" role="region" aria-label="Near-critical tasks list"></div>
           </div>
           
           <div class="focus-section">
-            <h3><span class="section-icon">🔍</span> Open Warnings</h3>
-            <div class="issues" id="focusWarnings"></div>
+            <h3><span class="section-icon" aria-hidden="true">🔍</span> Open Warnings</h3>
+            <div class="issues" id="focusWarnings" role="region" aria-label="Open warnings and issues"></div>
           </div>
         </div>
       </section>
-      <section id="compare" class="view">
+      <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view">
         <div class="focus">
           <div class="row" style="gap:.5rem; align-items:center">
-            <label>Baselines <select id="baselineSelect" multiple size="3"></select></label>
-            <button class="btn small" id="btnSetBaseline">Use Selected</button>
+            <label>Baselines <select id="baselineSelect" multiple size="3" aria-label="Select baseline projects for comparison"></select></label>
+            <button class="btn small" id="btnSetBaseline" aria-label="Use selected baselines for comparison">Use Selected</button>
           </div>
           <div class="cards" style="margin-top:.5rem">
-            <div class="card"><div>Finish (baseline)</div><div class="metric" id="cmpFinishA">—</div></div>
-            <div class="card"><div>Finish (current)</div><div class="metric" id="cmpFinishB">—</div></div>
-            <div class="card"><div>Δ days</div><div class="metric" id="cmpFinishDelta">—</div></div>
-            <div class="card"><div>Critical Δ (count)</div><div class="metric" id="cmpCritDelta">—</div></div>
+            <div class="card" role="region" aria-label="Baseline finish date"><div>Finish (baseline)</div><div class="metric" id="cmpFinishA" aria-live="polite">—</div></div>
+            <div class="card" role="region" aria-label="Current finish date"><div>Finish (current)</div><div class="metric" id="cmpFinishB" aria-live="polite">—</div></div>
+            <div class="card" role="region" aria-label="Finish date difference"><div>Δ days</div><div class="metric" id="cmpFinishDelta" aria-live="polite">—</div></div>
+            <div class="card" role="region" aria-label="Critical path difference"><div>Critical Δ (count)</div><div class="metric" id="cmpCritDelta" aria-live="polite">—</div></div>
           </div>
           <h3>Task deltas (start / finish / slack)</h3>
           <div class="list" id="cmpList"></div>
@@ -1673,43 +2212,44 @@
 
   <div class="hint" id="hint"></div>
   <div class="toast" id="toast"></div>
-  <div class="ctx-menu" id="ctxMenu">
-    <div data-action="edit">Edit</div>
-    <div data-action="duplicate">Duplicate</div>
-    <div data-action="delete">Delete</div>
-    <div data-action="adddep">Add dependency</div>
+  <div class="ctx-menu" id="ctxMenu" role="menu" aria-label="Task actions menu">
+    <div data-action="edit" role="menuitem" tabindex="0">Edit</div>
+    <div data-action="duplicate" role="menuitem" tabindex="0">Duplicate</div>
+    <div data-action="delete" role="menuitem" tabindex="0">Delete</div>
+    <div data-action="adddep" role="menuitem" tabindex="0">Add dependency</div>
   </div>
 
-  <div class="modal" id="guideModal" aria-hidden="true">
+  <div class="modal" id="guideModal" aria-hidden="true" role="dialog" aria-labelledby="guideModalTitle" aria-describedby="guideModalDescription">
     <div class="panel">
       <header>
-        <h1 style="font-size:1rem">Guided Workflow</h1>
+        <h1 id="guideModalTitle" style="font-size:1rem">Guided Workflow</h1>
+        <div id="guideModalDescription" class="sr-only">Step-by-step guide to using the project planner</div>
       </header>
-      <div class="wizard-step" id="wz1">
-        <h3>1) Choose dates & calendar</h3>
+      <div class="wizard-step" id="wz1" role="tabpanel" aria-labelledby="wz1Title">
+        <h3 id="wz1Title">1) Choose dates & calendar</h3>
         <p>Pick a start date and whether to use working days with holidays or calendar days.</p>
       </div>
-      <div class="wizard-step" id="wz2" style="display:none">
-        <h3>2) Import or insert a template</h3>
+      <div class="wizard-step" id="wz2" style="display:none" role="tabpanel" aria-labelledby="wz2Title">
+        <h3 id="wz2Title">2) Import or insert a template</h3>
         <p>Use <b>Open…</b> to load JSON/CSV or pick a library from the sidebar and click <b>Insert library</b>.</p>
       </div>
-      <div class="wizard-step" id="wz3" style="display:none">
-        <h3>3) Wire dependencies</h3>
+      <div class="wizard-step" id="wz3" style="display:none" role="tabpanel" aria-labelledby="wz3Title">
+        <h3 id="wz3Title">3) Wire dependencies</h3>
         <p>Use tokens like <code>FS:pred+2d</code>, <code>SS:pred</code> in the task editor (bulk add works too).</p>
       </div>
-      <div class="wizard-step" id="wz4" style="display:none">
-        <h3>4) Validate & iterate</h3>
+      <div class="wizard-step" id="wz4" style="display:none" role="tabpanel" aria-labelledby="wz4Title">
+        <h3 id="wz4Title">4) Validate & iterate</h3>
         <p>Open <b>Validation & Warnings</b> to fix issues. Drag bars to adjust, or use bulk edit.</p>
       </div>
-      <div class="wizard-step" id="wz5" style="display:none">
-        <h3>5) Compare scenarios</h3>
+      <div class="wizard-step" id="wz5" style="display:none" role="tabpanel" aria-labelledby="wz5Title">
+        <h3 id="wz5Title">5) Compare scenarios</h3>
         <p>Create scenarios and set a baseline. Use <b>Compare</b> to see deltas.</p>
       </div>
-      <div class="wizard-controls">
-        <button class="btn ghost" id="wzClose">Close</button>
-        <button class="btn" id="wzPrev" disabled>Back</button>
-        <button class="btn accent" id="wzNext">Next</button>
-      </div>
+              <div class="wizard-controls">
+          <button class="btn ghost" id="wzClose" aria-label="Close guided workflow">Close</button>
+          <button class="btn" id="wzPrev" disabled aria-label="Go to previous step">Back</button>
+          <button class="btn accent" id="wzNext" aria-label="Go to next step">Next</button>
+        </div>
     </div>
   </div>
 

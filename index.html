@@ -1999,50 +1999,50 @@
       <div class="toolbar-group">
         <h2 class="toolbar-heading">File</h2>
         <div class="button-group">
-          <button class="btn" id="btnNew" aria-label="Create new project">
+          <button class="btn" id="btnNew" aria-label="Create new project" title="Create new project">
             <span class="btn-icon" aria-hidden="true">✨</span>
-            New
+            <span class="sr-only">New</span>
           </button>
-          <button class="btn" id="btnLoad" aria-label="Open existing project file">
+          <button class="btn" id="btnLoad" aria-label="Open existing project file" title="Open existing project file">
             <span class="btn-icon" aria-hidden="true">📁</span>
-            Open…
+            <span class="sr-only">Open…</span>
           </button>
-          <button class="btn" id="btnSave" aria-label="Save current project">
+          <button class="btn" id="btnSave" aria-label="Save current project" title="Save current project">
             <span class="btn-icon" aria-hidden="true">💾</span>
-            Save
+            <span class="sr-only">Save</span>
           </button>
-          <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON">
+          <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON" title="Export project data as JSON">
             <span class="btn-icon" aria-hidden="true">📤</span>
-            Export JSON
+            <span class="sr-only">Export JSON</span>
           </button>
-          <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV">
+          <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV" title="Export project data as CSV">
             <span class="btn-icon" aria-hidden="true">📊</span>
-            Export CSV
+            <span class="sr-only">Export CSV</span>
           </button>
         </div>
       </div>
       <div class="toolbar-group">
         <h2 class="toolbar-heading">Tools</h2>
         <div class="button-group">
-        <button class="btn" id="btnUndo" title="Ctrl+Z" aria-label="Undo last action">
+        <button class="btn" id="btnUndo" title="Undo (Ctrl+Z)" aria-label="Undo last action">
             <span class="btn-icon" aria-hidden="true">↶</span>
-            Undo
+            <span class="sr-only">Undo</span>
           </button>
-        <button class="btn" id="btnRedo" title="Ctrl+Y" aria-label="Redo last undone action">
+        <button class="btn" id="btnRedo" title="Redo (Ctrl+Y)" aria-label="Redo last undone action">
             <span class="btn-icon" aria-hidden="true">↷</span>
-            Redo
+            <span class="sr-only">Redo</span>
           </button>
-          <button class="btn accent" id="btnPrint" aria-label="Print project or export as PDF">
+          <button class="btn accent" id="btnPrint" title="Print project or export as PDF" aria-label="Print project or export as PDF">
             <span class="btn-icon" aria-hidden="true">🖨️</span>
-            Print / PDF
+            <span class="sr-only">Print / PDF</span>
           </button>
-          <button class="btn" id="btnGuide" aria-label="Show user guide and help" onclick="document.getElementById('guided-workflow').style.display = 'block';">
+          <button class="btn" id="btnGuide" aria-label="Show user guide and help" title="Show user guide and help">
             <span class="btn-icon" aria-hidden="true">❓</span>
-            Guide
+            <span class="sr-only">Guide</span>
           </button>
-          <button class="btn" id="btnToggleTheme" aria-label="Toggle dark mode">
+          <button class="btn" id="btnToggleTheme" aria-label="Toggle dark mode" title="Toggle dark mode">
             <span class="btn-icon" aria-hidden="true">🌙</span>
-          Theme
+            <span class="sr-only">Theme</span>
           </button>
         </div>
       </div>
@@ -2270,7 +2270,8 @@
           <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
           <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
         </div>
-        <svg id="gantt" class="gantt" role="img" aria-label="Gantt chart showing project timeline"></svg>
+        <svg id="gantt" class="gantt" role="list" aria-label="Project timeline"></svg>
+        <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
       </section>
       <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view">
         <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships"></svg>
@@ -2686,6 +2687,10 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
+    bar.setAttribute('role','listitem');
+    const durVal = parseDurationStrict(t.duration).days || 0;
+    const labelText = `Task: ${t.name}, Duration: ${durVal} days, Phase: ${t.phase || 'N/A'}, Status: ${t.critical ? 'Critical' : 'Not Critical'}`;
+    bar.setAttribute('aria-label', labelText);
     if(SEL.has(t.id)) bar.classList.add('selected');
     const col=colorFor(t.subsystem);
     const isMilestone=(parseDurationStrict(t.duration).days||0)===0;
@@ -2784,6 +2789,26 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     gg.classList.remove('invalid','valid'); drag=null; setTimeout(()=>{ refresh(); }, 0);
   };
+
+  // Accessible summary
+  const summaryContainer = $('#gantt-accessible-summary');
+  if (summaryContainer) {
+    summaryContainer.innerHTML = '';
+    const list = document.createElement('ol');
+    list.setAttribute('aria-label', 'List of project tasks');
+    for (const r of rows) {
+      if (r.type !== 'task') continue;
+      const t = r.t;
+      const li = document.createElement('li');
+      const durVal = parseDurationStrict(t.duration).days || 0;
+      li.innerHTML = `Task: <strong>${esc(t.name)}</strong> (Phase: ${esc(t.phase) || 'N/A'}).
+        <span class="duration">Duration: ${durVal} days</span>.
+        <span class="slack">Slack: ${t.slack} days</span>.
+        Status: ${t.critical ? 'Critical' : 'Not Critical'}.`;
+      list.appendChild(li);
+    }
+    summaryContainer.appendChild(list);
+  }
 }
 
 function calcEarliestESFor(project, id, dur){
@@ -3113,6 +3138,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#btnSave').onclick=()=> saveFile(JSON.stringify(SM.get(), null, 2));
     $('#btnLoad').onclick=async()=>{ const data=await openFile(); if(!data) return; SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}); $('#startDate').value=SM.get().startDate; $('#calendarMode').value=SM.get().calendar; $('#holidayInput').value=(SM.get().holidays||[]).join(', '); clearSelection(); refresh(); };
     $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
+    $('#btnGuide').onclick=()=>document.getElementById('guided-workflow').style.display = 'block';
 
     // theme
     const btnToggleTheme = $('#btnToggleTheme');

@@ -85,6 +85,11 @@
   .kbd{padding:.12rem .35rem; border:1px solid #cbd5e1; border-bottom-width:2px; background:#f8fafc; border-radius:.35rem; font-size:.8rem; color:#334155}
   .hint{position:fixed; z-index:10; background:#fff; border:1px solid #fde68a; box-shadow:var(--shadow); border-radius:.5rem; padding:.25rem .4rem; font-size:.85rem; color:#7a5d00; display:none}
   .toast{position:fixed; right:14px; bottom:14px; background:#fff; border:1px solid #cbd5e1; box-shadow:var(--shadow); padding:.5rem .7rem; border-radius:.6rem; color:#0b1220; display:none}
+  #timeline{position:relative}
+  .mini-map{position:absolute; right:10px; bottom:10px; width:200px; height:60px; border:1px solid #cbd5e1; background:#fff; opacity:.9}
+  .ctx-menu{position:fixed; display:none; background:#fff; border:1px solid #cbd5e1; box-shadow:var(--shadow); border-radius:.5rem; z-index:1000}
+  .ctx-menu div{padding:.35rem .7rem; cursor:pointer}
+  .ctx-menu div:hover{background:#f1f5f9}
 
   .toolbar{display:flex; gap:.35rem; align-items:center}
   .groupHeader{fill:#f1f5f9; stroke:#e2e8f0}
@@ -265,6 +270,7 @@
       </div>
       <section id="timeline" class="view active">
         <svg id="gantt" class="gantt"></svg>
+        <svg id="miniMap" class="mini-map"></svg>
       </section>
       <section id="graph" class="view">
         <svg id="graphSvg"></svg>
@@ -304,6 +310,12 @@
 
   <div class="hint" id="hint"></div>
   <div class="toast" id="toast"></div>
+  <div class="ctx-menu" id="ctxMenu">
+    <div data-action="edit">Edit</div>
+    <div data-action="duplicate">Duplicate</div>
+    <div data-action="delete">Delete</div>
+    <div data-action="adddep">Add dependency</div>
+  </div>
 
   <div class="modal" id="guideModal" aria-hidden="true">
     <div class="panel">
@@ -341,6 +353,8 @@
 <script>
 (function(){
 'use strict';
+let ZTL;
+let MM_TASKS=[], MM_FINISH=0, MM_W=0, MM_SCALE=null;
 // ---------------------------- tiny utils ----------------------------
 const $ = (q,el=document)=>el.querySelector(q); const $$=(q,el=document)=>Array.from(el.querySelectorAll(q));
 const todayStr = ()=> new Date().toISOString().slice(0,10);
@@ -357,6 +371,9 @@ function deepFreeze(o){ if(o&&typeof o==='object'&&!Object.isFrozen(o)){ Object.
 function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._h); showToast._h=setTimeout(()=>{ t.style.display='none'; }, 2600); }
 function showHint(x,y,msg){ const h=$('#hint'); h.textContent=msg; h.style.left=(x+12)+'px'; h.style.top=(y+12)+'px'; h.style.display='block'; }
 function hideHint(){ $('#hint').style.display='none'; }
+function showContextMenu(x,y,id){ const m=$('#ctxMenu'); m.dataset.id=id; m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px'; }
+function hideContextMenu(){ $('#ctxMenu').style.display='none'; }
+document.addEventListener('click', hideContextMenu);
 
 // ---------------------------- duration parsing & validation ----------------------------
 function parseDurationStrict(v){
@@ -527,7 +544,8 @@ function collectIssues(project, cpm){
 function makeZoomPan(svg){
   const Z={};
   let vb=[0,0, svg.clientWidth||800, svg.clientHeight||500];
-  function setVB(x,y,w,h){ vb=[x,y,w,h]; svg.setAttribute('viewBox', vb.join(' ')); }
+  const listeners=[];
+  function setVB(x,y,w,h){ vb=[x,y,w,h]; svg.setAttribute('viewBox', vb.join(' ')); listeners.forEach(fn=>fn(vb)); }
   function fit(){ const w=svg.clientWidth||800, h=svg.clientHeight||500; setVB(0,0,w,h); }
   fit();
   let dragging=false; let p0=null;
@@ -538,7 +556,33 @@ function makeZoomPan(svg){
   Z.zoomIn=()=> setVB(vb[0]+vb[2]*0.05, vb[1]+vb[3]*0.05, vb[2]*0.9, vb[3]*0.9);
   Z.zoomOut=()=> setVB(vb[0]-vb[2]*0.055, vb[1]-vb[3]*0.055, vb[2]*1.1, vb[3]*1.1);
   Z.fit=fit;
+  Z.getViewBox=()=>vb.slice();
+  Z.setViewBox=(x,y,w,h)=>setVB(x,y,w,h);
+  Z.onChange=(fn)=>{ listeners.push(fn); };
   return Z;
+}
+
+function renderMiniMap(){
+  const mm=$('#miniMap'); if(!mm||!MM_SCALE) return;
+  const mmW=mm.clientWidth||200, mmH=mm.clientHeight||60;
+  mm.setAttribute('viewBox',`0 0 ${mmW} ${mmH}`);
+  mm.innerHTML='';
+  for(const t of MM_TASKS){
+    const x=MM_SCALE(Math.max(0,t.es||0))/MM_W*mmW;
+    const w=(MM_SCALE(Math.max(0,t.ef||t.es||0))-MM_SCALE(Math.max(0,t.es||0)))/MM_W*mmW;
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x); rect.setAttribute('y',10); rect.setAttribute('width',w); rect.setAttribute('height',8); rect.setAttribute('fill','#94a3b8');
+    mm.appendChild(rect);
+  }
+  if(ZTL && ZTL.getViewBox){
+    const vb=ZTL.getViewBox();
+    const rx=vb[0]/MM_W*mmW;
+    const rw=vb[2]/MM_W*mmW;
+    const view=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    view.setAttribute('x',rx); view.setAttribute('y',5); view.setAttribute('width',rw); view.setAttribute('height',18); view.setAttribute('fill','none'); view.setAttribute('stroke','#0ea5e9');
+    mm.appendChild(view);
+    mm.onclick=(e)=>{ const frac=e.offsetX/mmW; const newX=frac*MM_W - vb[2]/2; const nx=Math.max(0, Math.min(MM_W-vb[2], newX)); ZTL.setViewBox(nx, vb[1], vb[2], vb[3]); };
+  }
 }
 
 // ---------------------------- Filtering & grouping ----------------------------
@@ -565,7 +609,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis'); const ticks=10; for(let i=0;i<=ticks;i++){ const x=scale(i*(finish/ticks)); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = Math.round(i*(finish/ticks))+'d'; gAxis.appendChild(t); } svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',W); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
-    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) ); const bar=document.createElementNS('http://www.w3.org/2000/svg','g'); bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id); if(SEL.has(t.id)) bar.classList.add('selected'); const col=colorFor(t.subsystem); const rect=document.createElementNS("http://www.w3.org/2000/svg","rect"); rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("fill","#e2e8f0"); rect.setAttribute("style",`stroke:${col}`); bar.appendChild(rect); const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left); const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right); const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-6); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label); const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur); bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } }); g.appendChild(bar); y+=rowH; });
+    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) ); const bar=document.createElementNS('http://www.w3.org/2000/svg','g'); bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id); if(SEL.has(t.id)) bar.classList.add('selected'); const col=colorFor(t.subsystem); const rect=document.createElementNS("http://www.w3.org/2000/svg","rect"); rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("fill","#e2e8f0"); rect.setAttribute("style",`stroke:${col}`); bar.appendChild(rect); const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left); const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right); const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-6); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label); const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur); bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } }); bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); }); g.appendChild(bar); y+=rowH; });
+
+  MM_TASKS=tasksAll; MM_FINISH=finish; MM_W=W; MM_SCALE=scale; renderMiniMap();
 
   // drag
   let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
@@ -837,12 +883,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
     })();
 
     // Zoom/Pan controls
-    const ZTL=makeZoomPan($('#gantt')); const ZGR=makeZoomPan($('#graphSvg'));
+    ZTL=makeZoomPan($('#gantt')); const ZGR=makeZoomPan($('#graphSvg'));
+    ZTL.onChange(renderMiniMap);
     $('#zoomInTL').onclick=ZTL.zoomIn; $('#zoomOutTL').onclick=ZTL.zoomOut; $('#zoomResetTL').onclick=ZTL.fit;
     $('#zoomInGR').onclick=ZGR.zoomIn; $('#zoomOutGR').onclick=ZGR.zoomOut; $('#zoomResetGR').onclick=ZGR.fit;
 
     // Templates
     $('#btnInsertTpl').onclick=()=> insertTemplate($('#tplSelect').value);
+    $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks); refresh(); } } } };
 
   }catch(err){
     console.error(err);

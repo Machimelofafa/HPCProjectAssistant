@@ -607,6 +607,8 @@
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
   }
   
+
+  
   .gantt .bar:hover{
     stroke: var(--accent);
     stroke-width: 2;
@@ -629,6 +631,43 @@
     font-size: 11px;
     fill: var(--muted);
     font-weight: 500;
+  }
+  
+  /* Enhanced task names in timeline for better visibility */
+  .gantt .bar .label[text-anchor="end"]{
+    font-size: 13px;
+    fill: var(--ink);
+    font-weight: 600;
+    font-family: var(--font-family);
+  }
+  
+  /* Task name labels specifically (positioned at P-8) */
+  .gantt .bar text.label[text-anchor="end"]{
+    font-size: 14px;
+    fill: var(--ink);
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.9));
+  }
+  
+  /* Duration and percentage labels - make them more readable */
+  .gantt .bar .label:not([text-anchor="end"]){
+    font-size: 12px;
+    fill: var(--ink);
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  }
+  
+  /* Ensure task names have enough space and are fully visible */
+  .gantt .bar text.label[text-anchor="end"]{
+    dominant-baseline: middle;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Task name background styling */
+  .taskNameBg{
+    opacity: 0.9;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
   }
   
   .gantt .handle{
@@ -669,9 +708,10 @@
   }
   
   .axis text{
-    fill: var(--muted);
-    font-size: 11px;
-    font-weight: 500;
+    fill: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-family);
   }
   
   /* Enhanced issues */
@@ -1001,14 +1041,16 @@
   
   /* Enhanced group headers */
   .groupHeader{
-    fill: #f1f5f9;
+    fill: #f8fafc;
     stroke: #e2e8f0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
   }
   
   .groupLabel{
-    font-size: 12px;
-    fill: var(--muted);
-    font-weight: 500;
+    font-size: 13px;
+    fill: var(--ink);
+    font-weight: 600;
+    font-family: var(--font-family);
   }
   
   /* Enhanced bulk edit section */
@@ -1941,7 +1983,19 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
       const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
     }
-    const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-6); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label);
+    // Add background rectangle for task name readability
+    const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    const nameWidth = Math.max(80, t.name.length * 8); // Estimate text width
+    nameBg.setAttribute("x", P-8-nameWidth);
+    nameBg.setAttribute("y", y-2);
+    nameBg.setAttribute("width", nameWidth);
+    nameBg.setAttribute("height", 20);
+    nameBg.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+    nameBg.setAttribute("rx", "4");
+    nameBg.setAttribute("class", "taskNameBg");
+    bar.appendChild(nameBg);
+    
+    const label=document.createElementNS("http://www.w3.org/2000/svg","text"); label.setAttribute("class","label"); label.setAttribute("x",P-8); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); label.textContent=t.name; bar.appendChild(label);
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); }
     bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });

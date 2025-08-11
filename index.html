@@ -21,10 +21,10 @@
     
     /* Status colors with better contrast */
     --warn: #d69e2e;
-    --error: #e53e3e;
+    --error: #d53f40;
     --ok: #38a169;
-    --crit: #c53030;
-    --info: #3182ce;
+    --crit: #d53f40;
+    --info: #4299e1;
     
     /* Subsystem colors with enhanced visibility */
     --pwr: #fc8181;
@@ -33,7 +33,7 @@
     --bios: #9f7aea;
     --fw: #63b3ed;
     --mech: #4fd1c7;
-    --thermal: #68d391;
+    --thermal: #ed8936;
     --sys: #a0aec0;
     
       /* Enhanced shadows and effects */
@@ -150,24 +150,12 @@
     align-items: center;
   }
   
-  .button-group.primary {
-    margin-bottom: var(--spacing-xs);
-  }
-  
-  .button-group.secondary {
-    margin-bottom: var(--spacing-xs);
-  }
   
   .btn-icon {
     font-size: 0.9em;
     margin-right: var(--spacing-xs);
   }
   
-  header .badges{
-    display: flex; 
-    gap: var(--spacing-sm);
-    opacity: 0.9;
-  }
   
   .status-indicators {
     display: flex;
@@ -730,14 +718,14 @@
   }
   
   .gantt .bar .label{
-    font-size: 11px;
-    fill: var(--muted);
+    font-size: 13px;
+    fill: var(--ink);
     font-weight: 500;
   }
   
   /* Enhanced task names in timeline for better visibility */
   .gantt .bar .label[text-anchor="end"]{
-    font-size: 13px;
+    font-size: 14px;
     fill: var(--ink);
     font-weight: 600;
     font-family: var(--font-family);
@@ -748,18 +736,15 @@
     font-size: 14px;
     fill: var(--ink);
     font-weight: 700;
-    text-shadow: 0 1px 3px rgba(255, 255, 255, 1);
-    filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 1));
     dominant-baseline: middle;
     text-rendering: optimizeLegibility;
   }
   
   /* Duration and percentage labels - make them more readable */
   .gantt .bar .label:not([text-anchor="end"]){
-    font-size: 12px;
+    font-size: 13px;
     fill: var(--ink);
     font-weight: 700;
-    text-shadow: 0 1px 3px rgba(255, 255, 255, 1);
   }
   
   /* Task name background styling */
@@ -1862,38 +1847,6 @@
   }
 </style>
 
-<style>
-  /* Change timeline background to white for better contrast */
-  .timeline-container, .graph-container {
-    background-color: #ffffff !important;
-  }
-
-  /* Task labels: Make text black and bolder */
-  .task-name, .timeline-label {
-    color: #000000 !important;
-    font-weight: bold;
-    font-size: 14px;
-  }
-
-  /* Bars: Darken grays and pinks for contrast */
-  .task-bar {
-    background-color: #4a4a4a !important;
-    border: 1px solid #000000 !important;
-  }
-  .task-bar.low-priority {
-    background-color: #a52a2a !important;
-  }
-
-  /* Red text/outlines: Tone down to darker red if too bright */
-  .critical, .error {
-    color: #8b0000 !important;
-  }
-
-  /* Overall app: Ensure no gradient bleed */
-  body {
-    background: #ffffff !important;
-  }
-</style>
 </head>
 <body>
   <a href="#appRoot" class="skip-link">Skip to main content</a>
@@ -1907,7 +1860,7 @@
     </div>
     
     <div class="header-center">
-      <div class="button-group primary">
+      <div class="button-group">
         <button class="btn" id="btnNew" aria-label="Create new project">
           <span class="btn-icon" aria-hidden="true">✨</span>
           New
@@ -1920,20 +1873,14 @@
           <span class="btn-icon" aria-hidden="true">💾</span>
           Save
         </button>
-      </div>
-      
-      <div class="button-group secondary">
-        <button class="btn ghost" id="btnExportJSON" aria-label="Export project data as JSON">
+        <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON">
           <span class="btn-icon" aria-hidden="true">📤</span>
           Export JSON
         </button>
-        <button class="btn ghost" id="btnExportCSV" aria-label="Export project data as CSV">
+        <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV">
           <span class="btn-icon" aria-hidden="true">📊</span>
           Export CSV
         </button>
-      </div>
-      
-      <div class="button-group actions">
         <button class="btn small" id="btnUndo" title="Ctrl+Z" aria-label="Undo last action">
           <span class="btn-icon" aria-hidden="true">↶</span>
           Undo
@@ -1965,13 +1912,6 @@
         </span>
       </div>
       
-      <div class="badges">
-        <span class="pill feature-pill" aria-label="Enhanced user interface features">🚀 Enhanced UI</span>
-        <span class="pill feature-pill" aria-label="Critical Path Method analysis">📈 CPM</span>
-        <span class="pill feature-pill" aria-label="Multiple scenario support">🔄 Scenarios</span>
-        <span class="pill feature-pill" aria-label="Data validation and error checking">✅ Validation</span>
-        <span class="pill feature-pill" aria-label="Modern user experience design">🎨 Modern UX</span>
-      </div>
     </div>
   </header>
   <div id="boot">
@@ -2075,64 +2015,76 @@
       <h2>Edit Selected (<span id="inlineCount">0</span>)</h2>
       <div class="inline-edit" id="inlineEdit"></div>
 
-      <h2>Bulk Edit (<span id="bulkCount">0</span>)</h2>
-      <div class="bulk">
-        <div class="row-3 row">
-          <label>Phase <input type="text" id="bulkPhase" placeholder="leave blank = skip"></label>
-          <label>Subsystem
-            <select id="bulkSub">
-              <option value="">—</option>
-              <option>System</option><option>power/VRM</option><option>PCIe</option><option>BMC</option><option>BIOS</option><option>FW</option><option>Mech</option><option>Thermal</option>
+      <details>
+        <summary>
+          <h2>Bulk Edit (<span id="bulkCount">0</span>)</h2>
+        </summary>
+        <div class="bulk">
+          <div class="row-3 row">
+            <label>Phase <input type="text" id="bulkPhase" placeholder="leave blank = skip"></label>
+            <label>Subsystem
+              <select id="bulkSub">
+                <option value="">—</option>
+                <option>System</option><option>power/VRM</option><option>PCIe</option><option>BMC</option><option>BIOS</option><option>FW</option><option>Mech</option><option>Thermal</option>
+              </select>
+            </label>
+            <label>Active <select id="bulkActive"><option value="">—</option><option value="true">true</option><option value="false">false</option></select></label>
+          </div>
+          <div class="row-3 row">
+            <label>Duration <input type="number" id="bulkDur" min="0" placeholder="e.g. 5"></label>
+            <label>Mode
+              <select id="bulkDurMode"><option value="set">set</option><option value="add">+/-</option></select>
+            </label>
+            <label>Name prefix <input type="text" id="bulkPrefix" placeholder="e.g. [R1]"></label>
+          </div>
+          <div class="row">
+            <label>Progress (%) <input type="number" id="bulkPct" min="0" max="100" placeholder="0"></label>
+          </div>
+          <div class="row">
+            <label>Add dependency token <input type="text" id="bulkAddDep" placeholder="e.g. FS:mobo_assembly+2d"></label>
+            <label><input type="checkbox" id="bulkClearDeps"> clear all deps</label>
+          </div>
+          <div class="row">
+            <label>Shift with SNET (+/‑ days) <input type="number" id="bulkShift" placeholder="0"></label>
+            <div style="display:flex; gap:.35rem"><button class="btn small" id="btnApplyBulk">Apply</button><button class="btn small" id="btnBulkReset">Reset fields</button></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <h2>Templates</h2>
+        </summary>
+        <div class="row">
+          <label>Library
+            <select id="tplSelect">
+              <option value="hpc">HPC Bring‑up (sample)</option>
+              <option value="sw">Software Sprint (2‑week)</option>
+              <option value="hw">Board Spin Cycle</option>
             </select>
           </label>
-          <label>Active <select id="bulkActive"><option value="">—</option><option value="true">true</option><option value="false">false</option></select></label>
         </div>
-        <div class="row-3 row">
-          <label>Duration <input type="number" id="bulkDur" min="0" placeholder="e.g. 5"></label>
-          <label>Mode
-            <select id="bulkDurMode"><option value="set">set</option><option value="add">+/-</option></select>
-          </label>
-          <label>Name prefix <input type="text" id="bulkPrefix" placeholder="e.g. [R1]"></label>
+        <div class="row" style="gap:.4rem; flex-wrap:wrap">
+          <button class="btn" id="btnInsertTpl">Insert library</button>
         </div>
-        <div class="row">
-          <label>Progress (%) <input type="number" id="bulkPct" min="0" max="100" placeholder="0"></label>
-        </div>
-        <div class="row">
-          <label>Add dependency token <input type="text" id="bulkAddDep" placeholder="e.g. FS:mobo_assembly+2d"></label>
-          <label><input type="checkbox" id="bulkClearDeps"> clear all deps</label>
-        </div>
-        <div class="row">
-          <label>Shift with SNET (+/‑ days) <input type="number" id="bulkShift" placeholder="0"></label>
-          <div style="display:flex; gap:.35rem"><button class="btn small" id="btnApplyBulk">Apply</button><button class="btn small" id="btnBulkReset">Reset fields</button></div>
-        </div>
-      </div>
+      </details>
 
-      <h2>Templates</h2>
-      <div class="row">
-        <label>Library
-          <select id="tplSelect">
-            <option value="hpc">HPC Bring‑up (sample)</option>
-            <option value="sw">Software Sprint (2‑week)</option>
-            <option value="hw">Board Spin Cycle</option>
+      <details>
+        <summary>
+          <h2>Validation & Warnings</h2>
+        </summary>
+        <div class="row" style="justify-content:flex-start; gap:.5rem">
+          <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
+          <select id="severityFilter">
+            <option value="all">Show: All</option>
+            <option value="critical">Critical only</option>
+            <option value="error">Errors & up</option>
+            <option value="warn">Warnings & up</option>
+            <option value="info">Info only</option>
           </select>
-        </label>
-      </div>
-      <div class="row" style="gap:.4rem; flex-wrap:wrap">
-        <button class="btn" id="btnInsertTpl">Insert library</button>
-      </div>
-
-      <h2>Validation & Warnings</h2>
-      <div class="row" style="justify-content:flex-start; gap:.5rem">
-        <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
-        <select id="severityFilter">
-          <option value="all">Show: All</option>
-          <option value="critical">Critical only</option>
-          <option value="error">Errors & up</option>
-          <option value="warn">Warnings & up</option>
-          <option value="info">Info only</option>
-        </select>
-      </div>
-      <div class="issues" id="issues"></div>
+        </div>
+        <div class="issues" id="issues"></div>
+      </details>
     </aside>
 
     <main role="main" aria-label="Project planning workspace">

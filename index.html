@@ -1973,6 +1973,20 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+
+  /* High-contrast task name chip + safe ellipsis */
+  .taskNameBg { fill: var(--panel); stroke: var(--line); opacity: 1; }
+  #timeline .gantt text.taskName {
+    font-size: 14px; font-weight: 700; fill: var(--ink);
+  }
+
+  /* Inside-bar labels: auto-hide when bar is narrow */
+  #timeline .gantt .label.inbar[data-w="narrow"] { display: none; }
+  #timeline .gantt .label.inbar[data-kind="duration"] { fill: var(--ink); }
+
+  /* Better contrast in dark mode */
+  html.dark-mode #timeline .gantt .label.inbar { fill: #111; }
+  html.dark-mode #timeline .gantt .bar rect { fill: #CBD5E1; } /* slightly lighter than bg */
 </style>
 
 </head>
@@ -3442,6 +3456,120 @@ function templateLib(which){
 }
 
 })();
+</script>
+<script>
+/* === TIMELINE VISIBILITY ENHANCEMENTS (single-file) === */
+
+/** Measure text length in the SVG coordinate space */
+function measureSvgText(svg, text, font = '14px Inter, system-ui, sans-serif') {
+  const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  probe.setAttribute('x', -9999); probe.setAttribute('y', -9999);
+  probe.style.font = font;
+  probe.textContent = text || '';
+  svg.appendChild(probe);
+  const w = probe.getComputedTextLength();
+  probe.remove();
+  return w;
+}
+
+/** Compute a safe left column (task-name) width P based on current tasks */
+function computeLeftColumnWidth(svg, tasks, min = 140, max = 320, pad = 18) {
+  let maxW = 0;
+  for (const t of tasks) {
+    maxW = Math.max(maxW, measureSvgText(svg, t.name));
+  }
+  return Math.max(min, Math.min(max, Math.ceil(maxW + pad)));
+}
+
+/** Apply ellipsis + title tooltip when a name overflows the chip */
+function fitTaskName(svgTextEl, maxWidth) {
+  const full = svgTextEl.getAttribute('data-full') || svgTextEl.textContent;
+  svgTextEl.setAttribute('data-full', full);
+  svgTextEl.setAttribute('title', full);
+
+  // Quick exit if it already fits
+  svgTextEl.textContent = full;
+  if (svgTextEl.getComputedTextLength() <= maxWidth) return;
+
+  // Binary-search ellipsis
+  let lo = 0, hi = full.length, best = '';
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const trial = full.slice(0, mid) + '…';
+    svgTextEl.textContent = trial;
+    if (svgTextEl.getComputedTextLength() <= maxWidth) {
+      best = trial; lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  svgTextEl.textContent = best || '…';
+}
+
+/** Mark inside-bar labels as narrow when bar is small */
+function tagNarrowInbarLabels(svg, minWidth = 46) {
+  svg.querySelectorAll('.gantt .bar').forEach(bar => {
+    const rect = bar.querySelector('rect');
+    if (!rect) return;
+    const bw = Number(rect.getAttribute('width') || 0);
+    bar.querySelectorAll('.label.inbar').forEach(label => {
+      label.setAttribute('data-w', bw < minWidth ? 'narrow' : 'wide');
+    });
+  });
+}
+
+/** Reflow task name column and labels after (re)render and on zoom/resize */
+function enhanceTimelineReadability() {
+  const svg = document.getElementById('gantt');
+  if (!svg) return;
+
+  // Derive tasks from existing bar groups
+  const tasks = Array.from(svg.querySelectorAll('.gantt .bar')).map(g => ({
+    name: (g.getAttribute('data-name') || g.querySelector('text.label[text-anchor="end"]')?.textContent || '').trim()
+  }));
+
+  if (!tasks.length) return;
+
+  // 1) Compute P, shift axis & bars if your renderer uses a constant P
+  const P = computeLeftColumnWidth(svg, tasks); // e.g., 140..320
+  // If your renderer uses a constant "P", update it here and re-render if needed.
+  // Otherwise, shift name texts and left chips based on P.
+  svg.style.setProperty('--left-col', P + 'px');
+
+  // 2) Fit task names + chip background
+  svg.querySelectorAll('.gantt .bar').forEach(bar => {
+    const nameText = bar.querySelector('text.label[text-anchor="end"], text.taskName');
+    const chip = bar.querySelector('rect.taskNameBg');
+    if (nameText && chip) {
+      // Max width for text inside the chip (chip width minus padding)
+      const chipWidth = Number(chip.getAttribute('width') || 0);
+      fitTaskName(nameText, chipWidth - 12);
+    }
+  });
+
+  // 3) Hide cramped labels inside bars
+  tagNarrowInbarLabels(svg);
+
+  // 4) Re-run on next frame to catch zoom transforms
+  requestAnimationFrame(() => tagNarrowInbarLabels(svg));
+}
+
+// Hook into your existing lifecycle
+window.addEventListener('resize', enhanceTimelineReadability, { passive: true });
+document.getElementById('zoomInTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
+document.getElementById('zoomOutTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
+document.getElementById('zoomResetTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
+
+// Call after initial render; if your app already exposes renderGantt, patch it:
+const _renderGanttOrig = window.renderGantt;
+if (typeof _renderGanttOrig === 'function') {
+  window.renderGantt = function(...args) {
+    const out = _renderGanttOrig.apply(this, args);
+    enhanceTimelineReadability();
+    return out;
+  }
+} else {
+  // Fallback if you don't have a render wrapper
+  window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0));
+}
 </script>
 <noscript>
   <div style="padding:1rem; color:#7f1d1d; background:#fef2f2; border:1px solid #fecaca; margin:1rem; border-radius:.6rem">

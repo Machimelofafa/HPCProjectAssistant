@@ -17,9 +17,9 @@
     /* Enhanced color palette with better contrast and modern aesthetics */
     --bg: #fafbfc;
     --panel: #ffffff;
-    --ink: #1a202c;
+    --ink: #111827;
     --muted: #4a5568;
-    --line: #cbd5e0;
+    --line: #cbd5e1;
     
     /* Primary colors with improved accessibility */
     --accent: #2c5282;
@@ -85,9 +85,9 @@
     color-scheme: dark;
     --bg: #121821;
     --panel: #1a202c;
-    --ink: #f7fafc;
+    --ink: #F3F4F6;
     --muted: #a0aec0;
-    --line: #3a4453;
+    --line: #64748B;
     --accent: #90cdf4;
     --accent-light: #63b3ed;
     --accent-dark: #bee3f8;
@@ -827,11 +827,13 @@
     filter: drop-shadow(0 2px 4px rgba(49, 130, 206, 0.2));
   }
   
-  .gantt .bar.critical rect{
-    stroke: var(--crit);
-    stroke-width: 2;
-    fill: url(#stripes);
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+  .gantt .bar.critical rect {
+    fill: #fca5a5; /* light red base */
+    stroke: #b91c1c;
+  }
+  .gantt .bar.critical rect.overlay {
+    fill: url(#critStripes);
+    color: rgba(0,0,0,0.3); /* stripe color via currentColor */
   }
   
   .gantt .bar.selected rect{
@@ -1997,6 +1999,11 @@
         <rect width="6" height="6" class="stripes-bg"/>
         <line x1="0" y1="0" x2="0" y2="6" class="stripes-line" stroke-width="3"/>
       </pattern>
+      <!-- Diagonal stripe pattern for critical tasks (works in dark/light) -->
+      <pattern id="critStripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="none"></rect>
+        <path d="M 0 0 L 0 6" stroke="currentColor" stroke-width="2" />
+      </pattern>
     </defs>
   </svg>
   <a href="#appRoot" class="skip-link">Skip to main content</a>
@@ -2895,6 +2902,18 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
       rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
       bar.appendChild(rect);
+
+      // Add overlay for critical tasks for the stripe pattern
+      if (t.critical) {
+        const overlay = document.createElementNS("http://www.w3.org/2000/svg","rect");
+        overlay.setAttribute('class', 'overlay');
+        overlay.setAttribute('x', x);
+        overlay.setAttribute('y', y);
+        overlay.setAttribute('width', w);
+        overlay.setAttribute('height', 16);
+        bar.appendChild(overlay);
+      }
+
       const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
       if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
       const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);

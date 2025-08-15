@@ -2905,7 +2905,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
     bar.setAttribute('role','listitem');
     const durVal = parseDurationStrict(t.duration).days || 0;
-    const labelText = `Task: ${t.name}, Duration: ${durVal} days, Phase: ${t.phase || 'N/A'}, Status: ${t.critical ? 'Critical' : 'Not Critical'}`;
+    const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack ' + t.slack + ' days'}`;
     bar.setAttribute('aria-label', labelText);
     if(SEL.has(t.id)) bar.classList.add('selected');
     const col=colorFor(t.subsystem);
@@ -3022,7 +3022,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const summaryContainer = $('#gantt-accessible-summary');
   if (summaryContainer) {
     summaryContainer.innerHTML = '';
-    const list = document.createElement('ol');
+    const list = document.createElement('ul');
     list.setAttribute('aria-label', 'List of project tasks');
     for (const r of rows) {
       if (r.type !== 'task') continue;

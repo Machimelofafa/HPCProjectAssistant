@@ -2993,7 +2993,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         label.textContent = name;
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
-    if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
+    if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
     bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
@@ -3308,7 +3308,6 @@ function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holid
 // -------------------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', ()=>{
   try{
-    $('#startDate').value = todayStr();
     setupLegend();
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
@@ -3328,6 +3327,13 @@ window.addEventListener('DOMContentLoaded', ()=>{
     } else {
       SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks: templateHPC()},{record:false, name: 'Load Sample Project'});
     }
+
+    // Sync UI to loaded state, which also handles empty/missing start date
+    const loadedState = SM.get();
+    $('#startDate').value = loadedState.startDate || todayStr();
+    $('#calendarMode').value = loadedState.calendar || 'workdays';
+    $('#holidayInput').value = (loadedState.holidays || []).join(', ');
+
     refresh();
 
     // reactive
@@ -3426,7 +3432,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#zoomInGR').onclick=ZGR.zoomIn; $('#zoomOutGR').onclick=ZGR.zoomOut; $('#zoomResetGR').onclick=ZGR.fit;
 
     // Templates
-    $('#btnInsertTpl').onclick=()=> insertTemplate($('#tplSelect').value);
+    $('#btnInsertTpl').onclick=()=> {
+      insertTemplate($('#tplSelect').value);
+      // The SM.addTasks in insertTemplate doesn't trigger a refresh, so force one.
+      setTimeout(() => refresh(), 0);
+    };
     $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks, {name: 'Add Dependency'}); refresh(); } } } };
 
   }catch(err){

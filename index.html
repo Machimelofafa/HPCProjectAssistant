@@ -419,6 +419,14 @@
     margin: 0 auto;
   }
   
+  /* Collapsible sidebar */
+  body.sidebar-collapsed .layout { grid-template-columns: 0 1fr; }
+  body.sidebar-collapsed aside { display: none; }
+  @media (max-width: 1024px) {
+    /* auto-collapse under tablet width */
+    .layout { grid-template-columns: 1fr; }
+  }
+
   details > summary {
     list-style: none;
     cursor: pointer;
@@ -2065,6 +2073,7 @@
             <span class="btn-icon" aria-hidden="true">🌙</span>
             <span class="sr-only">Theme</span>
           </button>
+          <button class="btn small" id="btnToggleSidebar" aria-pressed="false" aria-label="Toggle sidebar">☰</button>
         </div>
       </div>
     </div>
@@ -3589,6 +3598,14 @@ if (typeof _renderGanttOrig === 'function') {
   // Fallback if you don't have a render wrapper
   window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0));
 }
+</script>
+<script>
+document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
+  const on = !document.body.classList.contains('sidebar-collapsed');
+  document.body.classList.toggle('sidebar-collapsed', on);
+  e.currentTarget.setAttribute('aria-pressed', String(on));
+  setTimeout(()=> enhanceTimelineReadability(), 0); // reflow
+});
 </script>
 <noscript>
   <div style="padding:1rem; color:#7f1d1d; background:#fef2f2; border:1px solid #fecaca; margin:1rem; border-radius:.6rem">

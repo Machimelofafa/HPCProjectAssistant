@@ -823,16 +823,12 @@
 
   .gantt .bar rect {
     fill: #e2e8f0;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.05));
   }
   
   .gantt .bar:hover{
     stroke: var(--accent);
     stroke-width: 2;
-  }
-
-  .gantt .bar:hover rect{
-    filter: drop-shadow(0 2px 4px rgba(49, 130, 206, 0.2));
   }
   
   .gantt .bar.critical rect {
@@ -2716,10 +2712,25 @@ function makeZoomPan(svg){
   function setVB(x,y,w,h){ vb=[x,y,w,h]; svg.setAttribute('viewBox', vb.join(' ')); listeners.forEach(fn=>fn(vb)); }
   function fit(){ const w=svg.clientWidth||800, h=svg.clientHeight||500; setVB(0,0,w,h); }
   fit();
-  let dragging=false; let p0=null;
+  let dragging=false; let p0=null, panTicking=false, lastPanX, lastPanY;
   svg.addEventListener('wheel', (e)=>{ e.preventDefault(); const scale = e.deltaY>0? 1.1 : 0.9; const mx=e.offsetX, my=e.offsetY; const nx = vb[0] + (mx/vb[2])*vb[2]*(1-scale); const ny = vb[1] + (my/vb[3])*vb[3]*(1-scale); const nw = vb[2]*scale; const nh = vb[3]*scale; setVB(nx, ny, nw, nh); });
   svg.addEventListener('pointerdown', (e)=>{ if(e.button!==0) return; dragging=true; p0={x:e.clientX, y:e.clientY, vb0:[...vb]}; svg.setPointerCapture(e.pointerId); });
-  svg.addEventListener('pointermove', (e)=>{ if(!dragging) return; const dx=e.clientX-p0.x, dy=e.clientY-p0.y; setVB(p0.vb0[0]-dx, p0.vb0[1]-dy, p0.vb0[2], p0.vb0[3]); });
+  svg.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    lastPanX = e.clientX;
+    lastPanY = e.clientY;
+    if (!panTicking) {
+      panTicking = true;
+      window.requestAnimationFrame(() => {
+        if (dragging) {
+          const dx = lastPanX - p0.x;
+          const dy = lastPanY - p0.y;
+          setVB(p0.vb0[0] - dx, p0.vb0[1] - dy, p0.vb0[2], p0.vb0[3]);
+        }
+        panTicking = false;
+      });
+    }
+  });
   svg.addEventListener('pointerup', (e)=>{ dragging=false; svg.releasePointerCapture(e.pointerId); });
   Z.zoomIn=()=> setVB(vb[0]+vb[2]*0.05, vb[1]+vb[3]*0.05, vb[2]*0.9, vb[3]*0.9);
   Z.zoomOut=()=> setVB(vb[0]-vb[2]*0.055, vb[1]-vb[3]*0.055, vb[2]*1.1, vb[3]*1.1);

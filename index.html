@@ -2047,6 +2047,224 @@
     }
   }
 </style>
+<style id="ui-visibility-tokens">
+  /* --- DESIGN TOKENS --- */
+  :root {
+    /* Color Palette (Light Mode) - High Contrast */
+    --c-bg: #FFFFFF;
+    --c-panel: #F7F9FC;
+    --c-text: #18181B;
+    --c-text-muted: #52525B;
+    --c-border: #D4D4D8;
+    --c-accent: #2563EB;
+    --c-accent-text: #FFFFFF;
+    --c-focus-ring: rgba(37, 99, 235, 0.5);
+
+    /* Typography */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --fs-base: 16px;
+    --lh-base: 1.6;
+
+    /* Spacing */
+    --space-1: 0.25rem; /* 4px */
+    --space-2: 0.5rem;  /* 8px */
+    --space-3: 0.75rem; /* 12px */
+    --space-4: 1rem;    /* 16px */
+    --space-6: 1.5rem;  /* 24px */
+    --space-8: 2rem;    /* 32px */
+
+    /* Border Radius */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  html.dark-mode {
+    /* Color Palette (Dark Mode) - High Contrast */
+    --c-bg: #18181B;
+    --c-panel: #27272A;
+    --c-text: #F4F4F5;
+    --c-text-muted: #A1A1AA;
+    --c-border: #3F3F46;
+    --c-accent: #60A5FA;
+    --c-accent-text: #18181B;
+  }
+
+  /* --- COMPONENT CLASSES --- */
+  body {
+    background-color: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    line-height: var(--lh-base);
+  }
+
+  .app-header {
+    background-color: var(--c-panel);
+    border-bottom: 1px solid var(--c-border);
+    padding: var(--space-3) var(--space-4);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .grid {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .panel {
+    background-color: var(--c-panel);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .controls {
+    position: sticky;
+    top: 80px; /* Assuming header height */
+    height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+  }
+
+  .label {
+    font-weight: 600;
+    color: var(--c-text);
+  }
+
+  .kpis {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  .kpi {
+    flex: 1;
+    padding: var(--space-4);
+    text-align: center;
+  }
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .table thead {
+    position: sticky;
+    top: 0; /* Or header height if table is at top */
+    background-color: var(--c-panel);
+    z-index: 1;
+  }
+
+  .table th, .table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--c-border);
+    text-align: left;
+  }
+
+  .table tbody tr:hover {
+    background-color: rgba(0,0,0,0.05);
+  }
+  html.dark-mode .table tbody tr:hover {
+    background-color: rgba(255,255,255,0.05);
+  }
+
+  .btn {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    background-color: var(--c-panel);
+    color: var(--c-text);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+
+  .btn:hover {
+    border-color: var(--c-accent);
+  }
+
+  .btn.primary {
+    background-color: var(--c-accent);
+    color: var(--c-accent-text);
+    border-color: var(--c-accent);
+  }
+
+  input, select, textarea {
+    background-color: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    color: var(--c-text);
+    font-family: inherit;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--c-focus-ring);
+    outline-offset: 1px;
+    border-color: var(--c-accent);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    background-color: var(--c-accent);
+    color: var(--c-accent-text);
+    font-size: 0.875em;
+    font-weight: 600;
+  }
+
+  .skeleton {
+    background-color: var(--c-border);
+    border-radius: var(--radius-md);
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    50% {
+      opacity: .5;
+    }
+  }
+
+  /* --- A11Y & PRINT --- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .app-header, .controls, #side {
+      display: none !important;
+    }
+    .grid {
+      grid-template-columns: 1fr !important;
+    }
+    .panel {
+      box-shadow: none;
+      border: 1px solid #ccc;
+    }
+  }
+</style>
 
 </head>
 <body>
@@ -2160,7 +2378,7 @@
     </div>
   </header>
 
-  <header id="new-header">
+  <header id="new-header" class="app-header">
     <div class="header-left">
       <h1>HPC/AI Planner</h1>
     </div>
@@ -2192,58 +2410,59 @@
           </summary>
           <aside>
           <div class="row">
-            <label class="form-label">
+            <label for="startDate" class="label">
               <span class="label-icon" aria-hidden="true">📅</span>
               Start date
-              <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp">
             </label>
+            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp">
             <div id="startDateHelp" class="sr-only">Select the project start date</div>
           </div>
           <div class="row">
-            <label class="form-label">
+            <label for="calendarMode" class="label">
               <span class="label-icon" aria-hidden="true">🗓️</span>
               Calendar
-              <select id="calendarMode" class="form-input" aria-describedby="calendarModeHelp">
-                <option value="workdays">Working days (Mon–Fri + holidays)</option>
-                <option value="calendar">Calendar days</option>
-              </select>
             </label>
+            <select id="calendarMode" class="form-input" aria-describedby="calendarModeHelp">
+              <option value="workdays">Working days (Mon–Fri + holidays)</option>
+              <option value="calendar">Calendar days</option>
+            </select>
             <div id="calendarModeHelp" class="sr-only">Choose between working days or calendar days for project scheduling</div>
           </div>
           <div class="row" style="align-items:flex-start">
-            <label class="form-label full-width">
+            <label for="holidayInput" class="label full-width">
               <span class="label-icon" aria-hidden="true">🎉</span>
               Holidays (YYYY‑MM‑DD)
-              <textarea id="holidayInput" placeholder="2025-01-01, 2025-05-01, 2025-12-25" class="form-input" aria-describedby="holidayInputHelp"></textarea>
             </label>
+            <textarea id="holidayInput" placeholder="2025-01-01, 2025-05-01, 2025-12-25" class="form-input" aria-describedby="holidayInputHelp"></textarea>
             <div id="holidayInputHelp" class="sr-only">Enter holiday dates in YYYY-MM-DD format, separated by commas</div>
           </div>
           <div class="row">
-            <label class="form-label">
+            <label for="slackThreshold" class="label">
               <span class="label-icon" aria-hidden="true">⏰</span>
               Slack threshold
-              <input type="number" id="slackThreshold" min="0" value="2" class="form-input" aria-describedby="slackThresholdHelp"> days
             </label>
+            <input type="number" id="slackThreshold" min="0" value="2" class="form-input" aria-describedby="slackThresholdHelp"> days
             <div id="slackThresholdHelp" class="sr-only">Set the minimum slack threshold in days for highlighting critical paths</div>
           </div>
 
           <h2><span class="section-icon" aria-hidden="true">🔍</span> Filter & Group</h2>
                   <div class="row">
+              <label for="filterText" class="label sr-only">Filter</label>
               <div class="search-container">
                 <span class="search-icon" aria-hidden="true">🔍</span>
                 <input type="text" id="filterText" placeholder="Filter by name or phase…" class="form-input search-input" aria-label="Filter tasks by name or phase">
               </div>
             </div>
           <div class="row">
-            <label class="form-label">
+            <label for="groupBy" class="label">
               <span class="label-icon" aria-hidden="true">📊</span>
               Group by
-              <select id="groupBy" class="form-input" aria-describedby="groupByHelp">
-                <option value="none">None</option>
-                <option value="phase">Phase</option>
-                <option value="subsystem">Subsystem</option>
-              </select>
             </label>
+            <select id="groupBy" class="form-input" aria-describedby="groupByHelp">
+              <option value="none">None</option>
+              <option value="phase">Phase</option>
+              <option value="subsystem">Subsystem</option>
+            </select>
             <div id="groupByHelp" class="sr-only">Choose how to group and organize tasks in the display</div>
           </div>
           <div class="row filter-actions">
@@ -2363,10 +2582,10 @@
       </div>
     </aside>
     <section class="panel" id="main">
-        <div class="kpi-cards" style="display: flex; gap: var(--spacing-lg); margin-bottom: var(--spacing-lg);">
-            <div class="card" id="kpiCritical">Critical: 12</div>
-            <div class="card" id="kpiBlocked">Blocked: 3</div>
-            <div class="card" id="kpiMilestone">Next Milestone: 5d</div>
+        <div class="kpis">
+            <div class="kpi card" id="kpiCritical">Critical: 12</div>
+            <div class="kpi card" id="kpiBlocked">Blocked: 3</div>
+            <div class="kpi card" id="kpiMilestone">Next Milestone: 5d</div>
         </div>
         <main role="main" aria-label="Project planning workspace">
         <div class="tabs" role="tablist" aria-label="Project views">

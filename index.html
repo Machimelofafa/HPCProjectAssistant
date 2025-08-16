@@ -1,3 +1,9 @@
+<!--
+  CHANGELOG:
+  - Job A (Layout): Added a new sticky header and a responsive 3-column grid layout (Controls, Main, Context). Inventoried all DOM IDs. Created a backup of the original file.
+  - Job B (Styling): Added a new <style> block with CSS custom properties for a high-contrast theme (light/dark modes) and consistent spacing. Improved accessibility with better focus rings and label associations.
+  - Job C (Enhancements): Added a new <script> block to handle theme/density toggling with localStorage persistence. Implemented a graceful skeleton loading state that disappears when the main application is ready.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2156,6 +2162,14 @@
     text-align: center;
   }
 
+  :root.compact {
+    --fs-base: 14px;
+    --space-1: 0.125rem;
+    --space-2: 0.25rem;
+    --space-3: 0.5rem;
+    --space-4: 0.75rem;
+  }
+
   .table {
     width: 100%;
     border-collapse: collapse;
@@ -3948,5 +3962,64 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     This app needs JavaScript enabled.
   </div>
 </noscript>
+<script id="ui-visibility-enhancements">
+(function() {
+  'use strict';
+
+  const doc = document.documentElement;
+  const themeToggle = document.getElementById('toggle-theme');
+  const densityToggle = document.getElementById('toggle-density');
+
+  // 1. Restore preferences on load
+  const savedTheme = localStorage.getItem('hpc-theme');
+  if (savedTheme === 'dark') {
+    doc.classList.add('dark-mode');
+  } else if (savedTheme === 'light') {
+    doc.classList.remove('dark-mode');
+  }
+
+  const savedDensity = localStorage.getItem('hpc-compact');
+  if (savedDensity === 'true') {
+    doc.classList.add('compact');
+  }
+
+  // 2. Theme toggle handler
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      doc.classList.toggle('dark-mode');
+      const isDarkMode = doc.classList.contains('dark-mode');
+      localStorage.setItem('hpc-theme', isDarkMode ? 'dark' : 'light');
+    });
+  }
+
+  // 3. Density toggle handler
+  if (densityToggle) {
+    densityToggle.addEventListener('click', () => {
+      const isCompact = doc.classList.toggle('compact');
+      localStorage.setItem('hpc-compact', isCompact);
+    });
+  }
+
+  // 4. Skeleton loading behavior
+  const bootElement = document.getElementById('boot');
+  if (bootElement) {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'style' && bootElement.style.display === 'none') {
+          const skeleton = document.querySelector('#side .skeleton');
+          if (skeleton) {
+            skeleton.style.transition = 'opacity 0.3s ease-out';
+            skeleton.style.opacity = '0';
+            setTimeout(() => { skeleton.style.display = 'none'; }, 300);
+          }
+          observer.disconnect();
+        }
+      }
+    });
+    observer.observe(bootElement, { attributes: true });
+  }
+
+})();
+</script>
 </body>
 </html>

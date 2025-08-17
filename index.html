@@ -33,9 +33,9 @@
     --accent-dark: #2a4365;
     
     /* Status colors with better contrast - color-blind friendly (blue/orange/purple) */
-    --warn: #dd6b20;     /* orange */
+    --warn: #c05621;     /* orange - WCAG AA compliant */
     --error: #c53030;    /* darker red */
-    --ok: #3182ce;       /* blue */
+    --ok: #2b6cb0;       /* blue - WCAG AA compliant */
     --crit: #c53030;     /* darker red */
     --info: #63b3ed;     /* light blue */
     
@@ -104,7 +104,7 @@
     --bmc: #b794f4;      /* purple */
     --bios: #d6bcfa;     /* light purple */
     --fw: #63b3ed;       /* blue */
-    --mech: #4fd1c5;     /* teal */
+    --mech: #64d8cb;     /* teal - WCAG AA compliant */
     --thermal: #f6ad55;  /* orange */
     --sys: #a0aec0;      /* slate gray */
   }
@@ -698,6 +698,13 @@
     color: var(--ink);
     background: rgba(49, 130, 206, 0.05);
   }
+
+  button.tab {
+    background: transparent;
+    border: none;
+    font: inherit;
+    padding: 0;
+  }
   
   .tab.active{
     border-bottom-color: var(--accent);
@@ -878,8 +885,11 @@
   /* Duration and percentage labels - make them more readable */
   .gantt .bar .label:not([text-anchor="end"]){
     font-size: 13px;
-    fill: white;
+    fill: var(--ink); /* Changed for contrast */
     font-weight: 700;
+  }
+  html.dark-mode .gantt .bar .label:not([text-anchor="end"]) {
+    fill: #111827; /* Use dark text on light bars in dark mode */
   }
   .gantt .bar .label.duration-label {
     fill: var(--ink);
@@ -1415,10 +1425,28 @@
     will-change: transform;
   }
   
-  .ctx-menu div:hover{
+  .ctx-menu div:hover, .ctx-menu button:hover, .ctx-menu button:focus-visible {
     background: #f7fafc;
     transform: translateX(4px);
     color: var(--accent);
+    outline: 2px solid var(--c-focus-ring);
+    outline-offset: -2px;
+  }
+
+  .ctx-menu button {
+    display: block;
+    width: calc(100% - 2 * var(--spacing-sm));
+    text-align: left;
+    background: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    cursor: pointer;
+    transition: background-color var(--transition-normal), transform var(--transition-normal), color var(--transition-normal);
+    border-radius: var(--radius-sm);
+    margin: var(--spacing-xs) var(--spacing-sm);
+    will-change: transform;
   }
   
   /* Enhanced toolbar */
@@ -1941,12 +1969,6 @@
     scroll-behavior: smooth;
   }
   
-  /* Enhanced focus states */
-  .btn:focus, .form-input:focus, .tab:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2);
-  }
-  
   /* Apply animations to key elements */
   .layout {
     animation: fadeIn 0.6s ease-out;
@@ -2267,11 +2289,11 @@
   }
 
   .action-menu .menu-item:hover,
-  .action-menu .menu-item:focus,
-  .action-menu .menu-item.focus-visible {
+  .action-menu .menu-item:focus-visible {
     background-color: var(--c-accent);
     color: var(--c-accent-text);
-    outline: none;
+    outline: 2px solid var(--c-focus-ring);
+    outline-offset: -2px;
   }
 
   input, select, textarea {
@@ -2371,7 +2393,7 @@
       </pattern>
     </defs>
   </svg>
-  <a href="#appRoot" class="skip-link">Skip to main content</a>
+  <a href="#main" class="skip-link">Skip to main content</a>
   <header style="display:none">
     <div class="header-left">
       <h1>
@@ -2451,7 +2473,7 @@
     </div>
   </header>
 
-  <header id="new-header" class="app-header">
+  <header id="new-header" class="app-header" role="banner">
     <div class="header-left">
       <h1>HPC/AI Planner</h1>
     </div>
@@ -2493,7 +2515,7 @@
   </div>
   <div id="fatal"></div>
   <main class="container grid" id="layout" style="display:grid">
-    <aside class="panel controls" id="left-panel">
+    <aside class="panel controls" id="left-panel" role="complementary">
       <div class="layout" id="appRoot">
         <details open>
           <summary>
@@ -2673,38 +2695,37 @@
         </details>
       </div>
     </aside>
-    <section class="panel" id="main">
+    <section class="panel" id="main" role="main" aria-label="Project planning workspace">
         <div class="kpis">
             <div class="kpi card" id="kpiCritical">Critical: 12</div>
             <div class="kpi card" id="kpiBlocked">Blocked: 3</div>
             <div class="kpi card" id="kpiMilestone">Next Milestone: 5d</div>
         </div>
-        <main role="main" aria-label="Project planning workspace">
-        <div class="tabs" role="tablist" aria-label="Project views">
-            <div class="tab active" data-tab="timeline" role="tab" aria-selected="true" aria-controls="timeline">Timeline</div>
-            <div class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph">Dependency Graph</div>
-            <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
-            <div class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare">Compare</div>
+        <nav class="tabs" role="tablist" aria-label="Project views">
+            <button type="button" class="tab active" data-tab="timeline" role="tab" aria-selected="true" aria-controls="timeline" id="tab-timeline">Timeline</button>
+            <button type="button" class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph" id="tab-graph">Dependency Graph</button>
+            <button type="button" class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus" id="tab-focus">Where to focus</button>
+            <button type="button" class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare" id="tab-compare">Compare</button>
             <div class="view-controls" style="margin-left: auto; display: flex; align-items: center; gap: var(--spacing-md);">
                 <span style="margin-left:.5rem">Graph</span>
                 <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
                 <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
                 <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
             </div>
-        </div>
-        <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view" tabindex="0">
+        </nav>
+        <section id="timeline" class="view active" role="tabpanel" aria-labelledby="tab-timeline" aria-label="Project timeline view" tabindex="0">
             <div class="floating-toolbar">
             <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
             <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
             <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
             </div>
-            <svg id="gantt" class="gantt" role="list" aria-label="Project timeline"></svg>
+            <svg id="gantt" class="gantt" role="img" aria-label="Gantt chart of the project timeline, showing tasks and their dependencies over time."></svg>
             <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
         </section>
-        <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view" tabindex="0">
+        <section id="graph" class="view" role="tabpanel" aria-labelledby="tab-graph" aria-label="Dependency graph view" tabindex="0">
             <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships"></svg>
         </section>
-        <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view">
+        <section id="focus" class="view" role="tabpanel" aria-labelledby="tab-focus" aria-label="Project focus and analysis view">
             <div class="focus">
             <div class="focus-header">
                 <h2><span class="section-icon" aria-hidden="true">🎯</span> Project Overview</h2>
@@ -2753,7 +2774,7 @@
             </div>
             </div>
         </section>
-        <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view">
+        <section id="compare" class="view" role="tabpanel" aria-labelledby="tab-compare" aria-label="Project comparison view">
             <div class="focus">
             <div class="row" style="gap:.5rem; align-items:center">
                 <label>Baseline <select id="baselineSelect" aria-label="Select baseline project for comparison"></select></label>
@@ -2770,9 +2791,8 @@
             <div class="list" id="cmpList"></div>
             </div>
         </section>
-        </main>
     </section>
-    <aside class="panel" id="side" tabindex="-1">
+    <aside class="panel" id="side" tabindex="-1" role="complementary">
       <h3>Context</h3>
       <div class="skeleton"></div>
     </aside>
@@ -2781,17 +2801,17 @@
   <div class="hint" id="hint"></div>
   <div class="toast" id="toast"></div>
   <div class="ctx-menu" id="ctxMenu" role="menu" aria-label="Task actions menu">
-    <div data-action="edit" role="menuitem" tabindex="0">Edit</div>
-    <div data-action="duplicate" role="menuitem" tabindex="0">Duplicate</div>
-    <div data-action="delete" role="menuitem" tabindex="0">Delete</div>
-    <div data-action="adddep" role="menuitem" tabindex="0">Add dependency</div>
+    <button type="button" data-action="edit" role="menuitem">Edit</button>
+    <button type="button" data-action="duplicate" role="menuitem">Duplicate</button>
+    <button type="button" data-action="delete" role="menuitem">Delete</button>
+    <button type="button" data-action="adddep" role="menuitem">Add dependency</button>
   </div>
 
   <div class="modal" id="help-modal" role="dialog" aria-labelledby="helpModalTitle" aria-hidden="true" style="z-index: 1001;">
     <div class="panel">
       <header style="justify-content: space-between;">
         <h1 id="helpModalTitle">Keyboard Shortcuts</h1>
-        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('help-modal').style.display = 'none';">×</button>
+        <button class="btn ghost" aria-label="Close help dialog" id="close-help-modal">×</button>
       </header>
       <div class="p-lg" style="display: grid; grid-template-columns: auto 1fr; gap: var(--spacing-sm) var(--spacing-lg); align-items: center;">
         <kbd>Ctrl/Cmd + Z</kbd> <span>Undo last action</span>
@@ -2878,6 +2898,48 @@ function hideHint(){ $('#hint').style.display='none'; }
 function showContextMenu(x,y,id){ const m=$('#ctxMenu'); m.dataset.id=id; m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px'; }
 function hideContextMenu(){ $('#ctxMenu').style.display='none'; }
 document.addEventListener('click', hideContextMenu);
+
+function trapFocus(element, prevFocused) {
+    const focusableEls = $$('a[href]:not([disabled]), button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])', element);
+    if (!focusableEls.length) return;
+    const firstFocusableEl = focusableEls[0];
+    const lastFocusableEl = focusableEls[focusableEls.length - 1];
+
+    function keydownHandler(e) {
+        const isTabPressed = e.key === 'Tab';
+        if (!isTabPressed) return;
+
+        if (e.shiftKey) { // shift + tab
+            if (document.activeElement === firstFocusableEl) {
+                lastFocusableEl.focus();
+                e.preventDefault();
+            }
+        } else { // tab
+            if (document.activeElement === lastFocusableEl) {
+                firstFocusableEl.focus();
+                e.preventDefault();
+            }
+        }
+    }
+
+    function keydownEscape(e) {
+        if (e.key === 'Escape') {
+            close();
+        }
+    }
+
+    function close() {
+        element.style.display = 'none';
+        element.removeEventListener('keydown', keydownHandler);
+        document.removeEventListener('keydown', keydownEscape);
+        if (prevFocused) prevFocused.focus();
+    }
+
+    element.addEventListener('keydown', keydownHandler);
+    document.addEventListener('keydown', keydownEscape);
+
+    return close;
+}
 
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
 // Functions for parsing and validating specific data formats like duration and dependencies.
@@ -3334,6 +3396,7 @@ function renderGraph(project, cpm){
         const node=document.createElementNS('http://www.w3.org/2000/svg','g');
         node.setAttribute('class','node'+(t.critical?' critical':''));
         node.setAttribute('data-id',t.id);
+        node.setAttribute('tabindex', '0');
         if(SEL.has(t.id)) node.classList.add('selected');
         const color=colorFor(t.subsystem);
 
@@ -3379,6 +3442,18 @@ function renderGraph(project, cpm){
           }
           refresh();
         });
+        node.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                node.click();
+            }
+            if (ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey)) {
+                ev.preventDefault();
+                selectOnly(t.id);
+                const rect = ev.target.getBoundingClientRect();
+                showContextMenu(rect.left, rect.bottom, t.id);
+            }
+        });
         g.appendChild(node);
     }
 }
@@ -3402,6 +3477,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
     bar.setAttribute('role','listitem');
+    bar.setAttribute('tabindex', '0');
     const durVal = parseDurationStrict(t.duration).days || 0;
     const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack ' + t.slack + ' days'}`;
     bar.setAttribute('aria-label', labelText);
@@ -3501,6 +3577,18 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       refresh();
     });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+    bar.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            bar.click();
+        }
+        if (ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey)) {
+            ev.preventDefault();
+            selectOnly(t.id);
+            const rect = ev.target.getBoundingClientRect();
+            showContextMenu(rect.left, rect.bottom, t.id);
+        }
+    });
     g.appendChild(bar); y+=rowH; });
 
   // drag
@@ -4026,7 +4114,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#btnSave').onclick=()=> saveFile(JSON.stringify(SM.get(), null, 2));
     $('#btnLoad').onclick=async()=>{ const data=await openFile(); if(!data) return; SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}, {name: 'Load Project'}); $('#startDate').value=SM.get().startDate; $('#calendarMode').value=SM.get().calendar; $('#holidayInput').value=(SM.get().holidays||[]).join(', '); clearSelection(); refresh(); };
     $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
-    $('#btnGuide').onclick=()=>document.getElementById('help-modal').style.display = 'flex';
+
+    let closeHelpModal = null;
+    $('#btnGuide').onclick = () => {
+        const modal = $('#help-modal');
+        modal.style.display = 'flex';
+        const firstFocusable = modal.querySelector('button');
+        if (firstFocusable) firstFocusable.focus();
+        closeHelpModal = trapFocus(modal, $('#btnGuide'));
+    };
+    $('#close-help-modal').onclick = () => {
+        if (closeHelpModal) closeHelpModal();
+    };
 
     // theme
     const btnToggleTheme = $('#btnToggleTheme');

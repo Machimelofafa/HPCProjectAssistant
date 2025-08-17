@@ -2215,6 +2215,65 @@
     border-color: var(--c-accent);
   }
 
+  .header-right {
+    position: relative;
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .action-menu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    background: var(--c-panel);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    z-index: 20;
+    min-width: 220px;
+    padding: var(--space-2);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+    pointer-events: none;
+  }
+
+  .action-menu.open {
+    display: block; /* to allow transition */
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .action-menu {
+      transition: none;
+    }
+  }
+
+  .action-menu .menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--c-text);
+    font: inherit;
+    font-size: var(--fs-base);
+  }
+
+  .action-menu .menu-item:hover,
+  .action-menu .menu-item:focus,
+  .action-menu .menu-item.focus-visible {
+    background-color: var(--c-accent);
+    color: var(--c-accent-text);
+    outline: none;
+  }
+
   input, select, textarea {
     background-color: var(--c-bg);
     border: 1px solid var(--c-border);
@@ -2399,7 +2458,25 @@
     <div class="header-right">
       <button class="btn" id="toggle-theme">Theme</button>
       <button class="btn" id="toggle-density">Density</button>
-      <button class="btn accent" id="primary-action">Action</button>
+      <button class="btn accent" id="primary-action" aria-haspopup="true" aria-controls="action-menu" aria-expanded="false">Action</button>
+      <div id="action-menu" class="action-menu" role="menu" aria-labelledby="primary-action" style="display: none;">
+        <button role="menuitem" class="menu-item" id="action-export-json">
+          <span aria-hidden="true" style="margin-right: .5em;">📤</span> Export JSON
+        </button>
+        <button role="menuitem" class="menu-item" id="action-import-json">
+          <span aria-hidden="true" style="margin-right: .5em;">📥</span> Import JSON
+        </button>
+        <button role="menuitem" class="menu-item" id="action-export-png">
+          <span aria-hidden="true" style="margin-right: .5em;">🖼️</span> Export PNG
+        </button>
+        <hr role="separator" style="margin: 4px 0; border-color: var(--c-border, #D4D4D8);">
+        <button role="menuitem" class="menu-item" id="action-reset-demo">
+          <span aria-hidden="true" style="margin-right: .5em;">🔄</span> Reset Demo
+        </button>
+        <button role="menuitem" class="menu-item" id="action-toggle-theme">
+          <span aria-hidden="true" style="margin-right: .5em;">🎨</span> Theme: Light/Dark
+        </button>
+      </div>
     </div>
   </header>
 
@@ -3768,6 +3845,152 @@ window.addEventListener('DOMContentLoaded', ()=>{
     };
     $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks, {name: 'Add Dependency'}); refresh(); } } } };
 
+    // --- Action Menu Handlers ---
+
+    // 1. Export JSON
+    $('#action-export-json').addEventListener('click', () => {
+      const json = JSON.stringify(SM.get(), null, 2);
+      const blob = new Blob([json], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'project.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      showToast('Project data exported to project.json');
+    });
+
+    // 2. Import JSON
+    $('#action-import-json').addEventListener('click', async () => {
+      try {
+        const data = await openFile();
+        if (!data) return; // User cancelled
+        SM.set({
+          startDate: data.startDate || todayStr(),
+          calendar: data.calendar || 'workdays',
+          holidays: data.holidays || [],
+          tasks: ensureIds(data.tasks || [])
+        }, { name: 'Import Project' });
+
+        // Sync UI to new state
+        $('#startDate').value = SM.get().startDate;
+        $('#calendarMode').value = SM.get().calendar;
+        $('#holidayInput').value = (SM.get().holidays || []).join(', ');
+        clearSelection();
+        refresh();
+        showToast('Project imported successfully.');
+      } catch (e) {
+        console.error("Import failed:", e);
+        showToast('Error: Could not import file.');
+        $('#fatal').textContent = `Import Error: ${e.message}. Please ensure the file is valid JSON.`;
+        $('#fatal').style.display = 'block';
+      }
+    });
+
+    // 3. Export PNG
+    async function exportGanttToPng() {
+      const svg = $('#gantt');
+      if (!svg) {
+        showToast('Error: Timeline SVG not found.');
+        return;
+      }
+      showToast('Generating PNG...');
+
+      // Clone the SVG to avoid modifying the original
+      const svgClone = svg.cloneNode(true);
+
+      // Collect all relevant CSS rules from all stylesheets
+      let css = '';
+      const selectors = [
+        '.gantt', '.bar', '.axis', '.label', '.critical', '.milestone',
+        '.progress', '.handle', '.groupHeader', '.groupLabel', '.taskNameBg',
+        '#timeline', '.stripes-bg', '.stripes-line'
+      ];
+      for (const sheet of document.styleSheets) {
+          try {
+              for (const rule of sheet.cssRules) {
+                  if (rule.selectorText && selectors.some(s => rule.selectorText.includes(s))) {
+                      css += rule.cssText + '\n';
+                  }
+              }
+          } catch (e) {
+              console.warn("Could not read CSS rules from stylesheet:", e);
+          }
+      }
+
+      // Add a style element to the SVG clone
+      const styleEl = document.createElement('style');
+      styleEl.textContent = css;
+      svgClone.insertBefore(styleEl, svgClone.firstChild);
+
+      const { width, height } = svg.getBoundingClientRect();
+      svgClone.setAttribute('width', width);
+      svgClone.setAttribute('height', height);
+
+      // Serialize the SVG to a string and create a data URL
+      const svgString = new XMLSerializer().serializeToString(svgClone);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        // Add padding for better aesthetics
+        const padding = 20;
+        canvas.width = width + padding * 2;
+        canvas.height = height + padding * 2;
+        const ctx = canvas.getContext('2d');
+
+        // Fill background with current theme color
+        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--c-bg').trim();
+        ctx.fillStyle = bgColor || '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the SVG image onto the canvas
+        ctx.drawImage(img, padding, padding);
+        URL.revokeObjectURL(url);
+
+        // Trigger download
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `timeline-export-${todayStr()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('PNG export complete.');
+      };
+      img.onerror = (err) => {
+        console.error("PNG Export: Image loading failed.", err);
+        showToast('Error exporting PNG. Check console for details.');
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+    $('#action-export-png').addEventListener('click', exportGanttToPng);
+
+    // 4. Reset Demo Data
+    $('#action-reset-demo').addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset to the demo project? All unsaved changes will be lost.')) {
+        SM.set({
+          startDate: todayStr(),
+          calendar: 'workdays',
+          holidays: [],
+          tasks: templateHPC()
+        }, { record: true, name: 'Reset to Demo' });
+        refresh();
+        showToast('Project has been reset to the demo data.');
+      }
+    });
+
+    // 5. Toggle Theme
+    $('#action-toggle-theme').addEventListener('click', () => {
+      $('#toggle-theme').click(); // Reuse existing button's logic
+      const isDark = document.documentElement.classList.contains('dark-mode');
+      showToast(`Theme switched to ${isDark ? 'Dark' : 'Light'} Mode.`);
+    });
+
   }catch(err){
     console.error(err);
     const box=$('#fatal'); box.style.display='block'; box.textContent='Startup error:\n'+(err&&err.stack||String(err));
@@ -4018,6 +4241,120 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     });
     observer.observe(bootElement, { attributes: true });
   }
+
+})();
+</script>
+<script id="action-menu-controller">
+(function() {
+  'use strict';
+  const actionButton = document.getElementById('primary-action');
+  const actionMenu = document.getElementById('action-menu');
+
+  if (!actionButton || !actionMenu) return;
+
+  const menuItems = Array.from(actionMenu.querySelectorAll('[role="menuitem"]'));
+
+  function openMenu() {
+    actionMenu.style.display = 'block';
+    setTimeout(() => {
+      actionMenu.classList.add('open');
+      actionButton.setAttribute('aria-expanded', 'true');
+      menuItems[0]?.focus();
+    }, 10); // Small delay for transition
+  }
+
+  function closeMenu() {
+    actionMenu.classList.remove('open');
+    actionButton.setAttribute('aria-expanded', 'false');
+    actionButton.focus();
+    setTimeout(() => {
+      if (!actionMenu.classList.contains('open')) {
+        actionMenu.style.display = 'none';
+      }
+    }, 150); // Match CSS transition duration
+  }
+
+  actionButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isExpanded = actionButton.getAttribute('aria-expanded') === 'true';
+    if (isExpanded) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const isExpanded = actionButton.getAttribute('aria-expanded') === 'true';
+    if (isExpanded && !actionMenu.contains(e.target) && !actionButton.contains(e.target)) {
+      closeMenu();
+    }
+  });
+
+  // Consolidated keydown handler for the whole menu
+  actionMenu.addEventListener('keydown', (e) => {
+    const isExpanded = actionMenu.classList.contains('open');
+    if (!isExpanded) return;
+
+    const key = e.key;
+
+    if (key === 'Escape') {
+      closeMenu();
+      return;
+    }
+
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      e.preventDefault();
+      const activeEl = document.activeElement;
+      const currentIndex = menuItems.indexOf(activeEl);
+      let nextIndex = currentIndex + (key === 'ArrowDown' ? 1 : -1);
+
+      if (nextIndex >= menuItems.length) {
+        nextIndex = 0; // Wrap to top
+      } else if (nextIndex < 0) {
+        nextIndex = menuItems.length - 1; // Wrap to bottom
+      }
+
+      menuItems[nextIndex]?.focus();
+    }
+
+    if (key === 'Tab') {
+        e.preventDefault(); // Trap focus
+        const first = menuItems[0];
+        const last = menuItems[menuItems.length - 1];
+
+        if (e.shiftKey) { // Shift+Tab
+            if (document.activeElement === first) {
+                last.focus();
+            } else {
+                const idx = menuItems.indexOf(document.activeElement);
+                menuItems[idx - 1]?.focus();
+            }
+        } else { // Tab
+            if (document.activeElement === last) {
+                first.focus();
+            } else {
+                const idx = menuItems.indexOf(document.activeElement);
+                menuItems[idx + 1]?.focus();
+            }
+        }
+    }
+  });
+
+  // Global keydown for Escape, as menu may not have focus
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && actionMenu.classList.contains('open')) {
+      closeMenu();
+    }
+  });
+
+  // Add click listeners to close menu after action
+  menuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      // Action will be handled by other event listeners
+      closeMenu();
+    });
+  });
 
 })();
 </script>

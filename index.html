@@ -2353,7 +2353,7 @@
   tplSelect, btnInsertTpl, btnAutoFix, severityFilter, issues, zoomOutGR, zoomInGR, zoomResetGR,
   timeline, zoomOutTL, zoomInTL, zoomResetTL, gantt, gantt-accessible-summary, graph, graphSvg,
   focus, finishMetric, critMetric, countMetric, impactMetric, nearList, focusWarnings, compare,
-  baselineSelect, btnSetBaseline, cmpFinishA, cmpFinishB, cmpFinishDelta, cmpCritDelta, cmpList,
+  baselineSelect, btnUseBaseline, btnAddBaseline, cmpFinishA, cmpFinishB, cmpFinishDelta, cmpCritDelta, cmpList,
   hint, toast, ctxMenu, help-modal, helpModalTitle, guided-workflow, guideModalTitle,
   guideModalDescription, wz1, wz1Title, wz2, wz2Title, wz3, wz3Title, wz4, wz4Title, wz5,
   wz5Title, wzPrev, wzNext, arrow
@@ -2756,8 +2756,9 @@
         <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view">
             <div class="focus">
             <div class="row" style="gap:.5rem; align-items:center">
-                <label>Baselines <select id="baselineSelect" multiple size="3" aria-label="Select baseline projects for comparison"></select></label>
-                <button class="btn small" id="btnSetBaseline" aria-label="Use selected baselines for comparison">Use Selected</button>
+                <label>Baseline <select id="baselineSelect" aria-label="Select baseline project for comparison"></select></label>
+                <button class="btn small" id="btnUseBaseline" aria-label="Use selected baseline for comparison">Use Selected</button>
+                <button class="btn small" id="btnAddBaseline" aria-label="Save current project as new baseline">Save new baseline</button>
             </div>
             <div class="cards" style="margin-top:.5rem">
                 <div class="card" role="region" aria-label="Baseline finish date"><div>Finish (baseline)</div><div class="metric" id="cmpFinishA" aria-live="polite">—</div></div>
@@ -2946,6 +2947,13 @@ const SM=(function(){
   let state=deepFreeze({ startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[] });
   let listeners=[]; let lastCPMWarns=[];
   const undo=[]; const redo=[]; const MAX=100;
+  const BASE_KEY='hpc-project-baselines';
+  let baselines=[];
+  try{ baselines=JSON.parse(localStorage.getItem(BASE_KEY))||[]; }catch(e){ baselines=[]; }
+  function saveBaselines(){
+    try{ localStorage.setItem(BASE_KEY, JSON.stringify(baselines)); }
+    catch(e){ console.warn('Failed to save baselines', e); }
+  }
   function get(){ return clone(state); }
   function _apply(next){ state=deepFreeze(clone(next)); for(const fn of listeners){ try{ fn(get()); }catch(e){ console.warn(e); } } }
 
@@ -2968,6 +2976,7 @@ const SM=(function(){
     try {
       const data = JSON.stringify(state);
       localStorage.setItem('hpc-project-planner-data', data);
+      saveBaselines();
       const lastSaved = new Date().toLocaleTimeString();
       const lastSavedBadge = $('#lastSavedBadge');
       if (lastSavedBadge) {
@@ -3005,7 +3014,11 @@ const SM=(function(){
   function canUndo(){ return undo.length>0; } function canRedo(){ return redo.length>0; }
   function undoOp(){ if(!canUndo()) return; const record=undo.pop(); const cur={state: get(), name: record.name}; redo.push(cur); _apply(record.state); updateUndoUI(); }
   function redoOp(){ if(!canRedo()) return; const record=redo.pop(); const cur={state: get(), name: record.name}; undo.push(cur); _apply(record.state); updateUndoUI(); }
-  return {get,set,setProjectProps,addTasks,replaceTasks,updateTask,onChange,setCPMWarnings,undo:undoOp,redo:redoOp,canUndo,canRedo};
+  function listBaselines(){ return baselines.map(b=>({id:b.id,name:b.name,createdAt:b.createdAt})); }
+  function getBaseline(id){ const b=baselines.find(x=>x.id===id); return b? clone(b.projectSnapshot): null; }
+  function addBaseline(name){ const id=uid('b'); const projectSnapshot=get(); baselines.push({id,name,createdAt:new Date().toISOString(),projectSnapshot}); if(baselines.length>5) baselines=baselines.slice(-5); saveBaselines(); return id; }
+  function removeBaseline(id){ baselines=baselines.filter(b=>b.id!==id); saveBaselines(); }
+  return {get,set,setProjectProps,addTasks,replaceTasks,updateTask,onChange,setCPMWarnings,undo:undoOp,redo:redoOp,canUndo,canRedo,addBaseline,removeBaseline,getBaseline,listBaselines};
 })();
 
 // ----------------------------[ CRITICAL PATH METHOD (CPM) ENGINE ]----------------------------
@@ -3597,15 +3610,13 @@ function renderContextPanel(selectedId) {
 // Handles creating, switching, and comparing different project scenarios.
 // -------------------------------------------------------------------------------
 const SC=(function(){
-  const scenarios={}; let current='Working'; let baselines=[];
+  const scenarios={}; let current='Working';
   function snapshot(){ return SM.get(); }
   function saveAs(name){ scenarios[name]=clone(snapshot()); current=name; updateScenarioUI(); showToast(`Saved as "${name}"`); }
   function switchTo(name){ if(!scenarios[name]) return; SM.set(clone(scenarios[name]), {name: `Switch to ${name}`}); current=name; updateScenarioUI(); showToast(`Switched to "${name}"`); }
   function get(name){ return scenarios[name]? clone(scenarios[name]): null; }
   function list(){ return Object.keys(scenarios); }
-  function setBaselines(names){ baselines=names.filter(n=>scenarios[n]); updateScenarioUI(); showToast(`Baselines set: ${baselines.join(', ')||'none'}`); }
-  function getBaselines(){ return baselines.slice(); }
-  return {saveAs, switchTo, get, list, setBaselines, getBaselines, current:()=>current};
+  return {saveAs, switchTo, get, list, current:()=>current};
 })();
 function updateScenarioUI(){
   const sel=$('#scenarioSelect');
@@ -3616,66 +3627,67 @@ function updateScenarioUI(){
       const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt);
     }
     const badge=$('#scenarioBadge'); if(badge) badge.textContent = `Scenario: ${SC.current()}`;
-    const bSel=$('#baselineSelect');
-    if(bSel){
-      bSel.innerHTML='';
-      const bases=new Set(SC.getBaselines());
-      for(const n of items){
-        const o=document.createElement('option'); o.value=n; o.textContent=n; if(bases.has(n)) o.selected=true; bSel.appendChild(o);
-      }
+  }
+}
+function updateBaselineUI(){
+  const sel=$('#baselineSelect');
+  if(sel){
+    sel.innerHTML='';
+    const items=SM.listBaselines();
+    for(const b of items){
+      const opt=document.createElement('option'); opt.value=b.id; opt.textContent=b.name; sel.appendChild(opt);
     }
   }
 }
+let CURRENT_BASELINE=null;
 function buildCompare(){
-  const baseNames=SC.getBaselines();
-  if(baseNames.length===0){
-    $('#cmpList').innerHTML='<div class="issue sev-info"><div class="msg">Select baseline scenario(s).</div></div>';
+  const baseProj=CURRENT_BASELINE? SM.getBaseline(CURRENT_BASELINE): null;
+  const curProj=SM.get();
+  const L=$('#cmpList');
+  if(!baseProj){
+    $('#cmpFinishA').textContent='—';
+    $('#cmpFinishB').textContent='—';
+    $('#cmpFinishDelta').textContent='—';
+    $('#cmpCritDelta').textContent='—';
+    L.innerHTML='<div class="issue sev-info"><div class="msg">Select a baseline.</div></div>';
     return;
   }
-  const curProj=SM.get();
   const B=computeCPM(curProj);
   const calB=makeCalendar(curProj.calendar, new Set(curProj.holidays||[]));
-  $('#cmpFinishB').textContent=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
-  const L=$('#cmpList');
+  const finishB=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
+  $('#cmpFinishB').textContent=finishB;
+  const A=computeCPM(baseProj);
+  const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
+  const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
+  const delta=(B.finishDays||0)-(A.finishDays||0);
+  const critA=new Set(A.tasks.filter(t=>t.critical).map(t=>t.id));
+  const critB=new Set(B.tasks.filter(t=>t.critical).map(t=>t.id));
+  const critDelta=Math.abs(critA.size-critB.size);
+  $('#cmpFinishA').textContent=finishA;
+  $('#cmpFinishDelta').textContent=String(delta);
+  $('#cmpCritDelta').textContent=String(critDelta);
   L.innerHTML='';
-  baseNames.forEach((baseName, idx)=>{
-    const baseProj=SC.get(baseName);
-    if(!baseProj){
-      const div=document.createElement('div'); div.className='issue sev-error'; div.innerHTML=`<div class="msg">Baseline scenario missing: ${esc(baseName)}</div>`; L.appendChild(div); return;
-    }
-    const A=computeCPM(baseProj);
-    const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
-    const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
-    const delta=(B.finishDays||0)-(A.finishDays||0);
-    const critA=new Set(A.tasks.filter(t=>t.critical).map(t=>t.id));
-    const critB=new Set(B.tasks.filter(t=>t.critical).map(t=>t.id));
-    const critDelta=Math.abs(critA.size-critB.size);
-    if(idx===0){
-      $('#cmpFinishA').textContent=finishA;
-      $('#cmpFinishDelta').textContent=String(delta);
-      $('#cmpCritDelta').textContent=String(critDelta);
-    }
-    const header=document.createElement('div');
-    header.className='issue sev-info';
-    header.innerHTML=`<div class="msg"><b>${esc(baseName)}</b> • Δfinish ${delta}d • Δcritical ${critDelta}</div>`;
-    L.appendChild(header);
-    const mapA=Object.fromEntries(A.tasks.map(t=>[t.id,t]));
-    const mapB=Object.fromEntries(B.tasks.map(t=>[t.id,t]));
-    const rows=[];
-    for(const id of Object.keys(mapB)){
-      const a=mapA[id]; const b=mapB[id]; if(!b) continue;
-      const ds=(b.es||0)-(a? a.es||0:0);
-      const df=(b.ef||0)-(a? a.ef||0:0);
-      const dsl=(b.slack||0)-(a? a.slack||0:0);
-      rows.push({name:b.name||id, ds, df, dsl});
-    }
-    rows.sort((x,y)=> Math.abs(y.df)-Math.abs(x.df));
-    rows.forEach(r=>{
-      const div=document.createElement('div');
-      div.className='row';
-      div.innerHTML=`<span>${esc(r.name)}</span><span class="slack">Δstart ${r.ds}d • Δfinish ${r.df}d • Δslack ${r.dsl}d</span>`;
-      L.appendChild(div);
-    });
+  const meta=SM.listBaselines().find(b=>b.id===CURRENT_BASELINE);
+  const header=document.createElement('div');
+  header.className='issue sev-info';
+  header.innerHTML=`<div class="msg"><b>${esc(meta?meta.name:'Baseline')}</b> • Δfinish ${delta}d • Δcritical ${critDelta}</div>`;
+  L.appendChild(header);
+  const mapA=Object.fromEntries(A.tasks.map(t=>[t.id,t]));
+  const mapB=Object.fromEntries(B.tasks.map(t=>[t.id,t]));
+  const rows=[];
+  for(const id of Object.keys(mapB)){
+    const a=mapA[id]; const b=mapB[id]; if(!b) continue;
+    const ds=(b.es||0)-(a? a.es||0:0);
+    const df=(b.ef||0)-(a? a.ef||0:0);
+    const dsl=(b.slack||0)-(a? a.slack||0:0);
+    rows.push({name:b.name||id, ds, df, dsl});
+  }
+  rows.sort((x,y)=> Math.abs(y.df)-Math.abs(x.df));
+  rows.forEach(r=>{
+    const div=document.createElement('div');
+    div.className='row';
+    div.innerHTML=`<span>${esc(r.name)}</span><span class="slack">Δstart ${r.ds}d • Δfinish ${r.df}d • Δslack ${r.dsl}d</span>`;
+    L.appendChild(div);
   });
 }
 
@@ -3929,12 +3941,13 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // scenarios
     updateScenarioUI();
+    updateBaselineUI();
     $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ SC.switchTo(e.target.value); refresh(); });
     $('#btnScenarioNew') && ($('#btnScenarioNew').onclick=()=>{ const name=prompt('New scenario name'); if(!name) return; SC.saveAs(name); refresh(); });
     $('#btnScenarioSaveAs') && ($('#btnScenarioSaveAs').onclick=()=>{ const name=prompt('Save current as…'); if(!name) return; SC.saveAs(name); refresh(); });
-    $('#btnScenarioBaseline') && ($('#btnScenarioBaseline').onclick=()=>{ const name=$('#scenarioSelect').value; if(!name) return; const cur=SC.getBaselines(); if(!cur.includes(name)) cur.push(name); SC.setBaselines(cur); buildCompare(); });
     $('#btnOpenCompare') && ($('#btnOpenCompare').onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $('[data-tab="compare"]').classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#compare').classList.add('active'); buildCompare(); });
-    $('#btnSetBaseline').onclick=()=>{ const sel=$('#baselineSelect'); const vals=Array.from(sel.selectedOptions).map(o=>o.value); SC.setBaselines(vals); buildCompare(); };
+    $('#btnUseBaseline') && ($('#btnUseBaseline').onclick=()=>{ const id=$('#baselineSelect').value; CURRENT_BASELINE=id; buildCompare(); });
+    $('#btnAddBaseline') && ($('#btnAddBaseline').onclick=()=>{ const name=prompt('Baseline name'); if(!name) return; SM.addBaseline(name); updateBaselineUI(); });
 
     // I/O
     $('#btnExportCSV').onclick=exportCSV;

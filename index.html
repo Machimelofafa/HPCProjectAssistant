@@ -2755,9 +2755,14 @@
         </section>
         <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view">
             <div class="focus">
-            <div class="row" style="gap:.5rem; align-items:center">
-                <label>Baselines <select id="baselineSelect" multiple size="3" aria-label="Select baseline projects for comparison"></select></label>
-                <button class="btn small" id="btnSetBaseline" aria-label="Use selected baselines for comparison">Use Selected</button>
+            <div class="row" style="gap:.5rem; align-items:flex-start">
+                <label for="baselineList" class="label">Baselines</label>
+                <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div id="baselineList" class="list" style="max-height: 150px; border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: var(--space-2); background: var(--c-bg);"></div>
+                    <div style="display:flex; gap: 0.5rem; margin-top: 0.25rem;">
+                        <button class="btn small" id="btnSaveBaseline" aria-label="Save current project state as a new baseline">Save new baseline</button>
+                    </div>
+                </div>
             </div>
             <div class="cards" style="margin-top:.5rem">
                 <div class="card" role="region" aria-label="Baseline finish date"><div>Finish (baseline)</div><div class="metric" id="cmpFinishA" aria-live="polite">—</div></div>
@@ -3607,29 +3612,68 @@ const SC=(function(){
   function getBaselines(){ return baselines.slice(); }
   return {saveAs, switchTo, get, list, setBaselines, getBaselines, current:()=>current};
 })();
-function updateScenarioUI(){
-  const sel=$('#scenarioSelect');
-  if(sel){
-    sel.innerHTML='';
-    const items=SC.list();
-    for(const name of items){
-      const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt);
+function updateBaselineUI() {
+    const listEl = $('#baselineList');
+    if (!listEl) return;
+
+    const baselines = BM.listBaselines();
+    const selectedToCompare = new Set(BM.getBaselinesToCompare());
+
+    listEl.innerHTML = ''; // Clear previous content
+    if (baselines.length === 0) {
+        listEl.innerHTML = '<div class="text-muted" style="padding: var(--space-2);">No baselines saved yet.</div>';
+        return;
     }
-    const badge=$('#scenarioBadge'); if(badge) badge.textContent = `Scenario: ${SC.current()}`;
-    const bSel=$('#baselineSelect');
-    if(bSel){
-      bSel.innerHTML='';
-      const bases=new Set(SC.getBaselines());
-      for(const n of items){
-        const o=document.createElement('option'); o.value=n; o.textContent=n; if(bases.has(n)) o.selected=true; bSel.appendChild(o);
-      }
-    }
-  }
+
+    baselines.forEach(b => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.style.padding = 'var(--space-1) var(--space-2)';
+        row.style.justifyContent = 'space-between';
+        row.style.borderBottom = '1px dashed var(--c-border)';
+        row.style.borderRadius = 'var(--radius-sm)';
+
+        const isChecked = selectedToCompare.has(b.id);
+
+        row.innerHTML = `
+            <label class="flex items-center" style="gap: var(--space-2); cursor: pointer; width: 100%;">
+                <input type="checkbox" class="baseline-compare-cb" data-id="${b.id}" ${isChecked ? 'checked' : ''}>
+                <span>${esc(b.name)} <span class="text-muted text-sm">(${new Date(b.createdAt).toLocaleDateString()})</span></span>
+            </label>
+            <button class="btn small ghost" data-id="${b.id}" data-name="${esc(b.name)}" aria-label="Delete baseline ${esc(b.name)}">×</button>
+        `;
+        listEl.appendChild(row);
+    });
+
+    // Add event listeners after creating all elements
+    listEl.querySelectorAll('.baseline-compare-cb').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const selectedIds = Array.from(listEl.querySelectorAll('.baseline-compare-cb:checked')).map(el => el.dataset.id);
+            BM.setBaselinesToCompare(selectedIds);
+        });
+    });
+
+    listEl.querySelectorAll('.btn.ghost').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            if (confirm(`Are you sure you want to delete the baseline "${name}"?`)) {
+                BM.removeBaseline(id);
+            }
+        });
+    });
+
+    const badge=$('#scenarioBadge');
+    if(badge) badge.innerHTML = '<span class="pill-icon" aria-hidden="true">✍️</span> Project: Working';
 }
 function buildCompare(){
-  const baseNames=SC.getBaselines();
-  if(baseNames.length===0){
-    $('#cmpList').innerHTML='<div class="issue sev-info"><div class="msg">Select baseline scenario(s).</div></div>';
+  const baseIds = BM.getBaselinesToCompare();
+  if(baseIds.length===0){
+    $('#cmpList').innerHTML='<div class="issue sev-info"><div class="msg">Select one or more baselines to compare against the current project.</div></div>';
+    // Also clear the metric cards
+    $('#cmpFinishA').textContent = '—';
+    $('#cmpFinishDelta').textContent = '—';
+    $('#cmpCritDelta').textContent = '—';
     return;
   }
   const curProj=SM.get();
@@ -3638,11 +3682,15 @@ function buildCompare(){
   $('#cmpFinishB').textContent=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
   const L=$('#cmpList');
   L.innerHTML='';
-  baseNames.forEach((baseName, idx)=>{
-    const baseProj=SC.get(baseName);
-    if(!baseProj){
-      const div=document.createElement('div'); div.className='issue sev-error'; div.innerHTML=`<div class="msg">Baseline scenario missing: ${esc(baseName)}</div>`; L.appendChild(div); return;
+
+  const allBaselines = BM.listBaselines();
+
+  baseIds.forEach((baseId, idx)=>{
+    const baseline = allBaselines.find(b => b.id === baseId);
+    if(!baseline){
+      const div=document.createElement('div'); div.className='issue sev-error'; div.innerHTML=`<div class="msg">Baseline not found: ${esc(baseId)}</div>`; L.appendChild(div); return;
     }
+    const baseProj = baseline.projectSnapshot;
     const A=computeCPM(baseProj);
     const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
     const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
@@ -3657,7 +3705,7 @@ function buildCompare(){
     }
     const header=document.createElement('div');
     header.className='issue sev-info';
-    header.innerHTML=`<div class="msg"><b>${esc(baseName)}</b> • Δfinish ${delta}d • Δcritical ${critDelta}</div>`;
+    header.innerHTML=`<div class="msg"><b>${esc(baseline.name)}</b> • Δfinish ${delta}d • Δcritical ${critDelta}</div>`;
     L.appendChild(header);
     const mapA=Object.fromEntries(A.tasks.map(t=>[t.id,t]));
     const mapB=Object.fromEntries(B.tasks.map(t=>[t.id,t]));
@@ -3927,14 +3975,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
     // bulk
     $('#btnApplyBulk').onclick=applyBulk; $('#btnBulkReset').onclick=()=>{ ['bulkPhase','bulkSub','bulkActive','bulkDur','bulkDurMode','bulkPrefix','bulkPct','bulkAddDep','bulkClearDeps','bulkShift'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }); };
 
-    // scenarios
-    updateScenarioUI();
-    $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ SC.switchTo(e.target.value); refresh(); });
-    $('#btnScenarioNew') && ($('#btnScenarioNew').onclick=()=>{ const name=prompt('New scenario name'); if(!name) return; SC.saveAs(name); refresh(); });
-    $('#btnScenarioSaveAs') && ($('#btnScenarioSaveAs').onclick=()=>{ const name=prompt('Save current as…'); if(!name) return; SC.saveAs(name); refresh(); });
-    $('#btnScenarioBaseline') && ($('#btnScenarioBaseline').onclick=()=>{ const name=$('#scenarioSelect').value; if(!name) return; const cur=SC.getBaselines(); if(!cur.includes(name)) cur.push(name); SC.setBaselines(cur); buildCompare(); });
+    // baselines
+    updateBaselineUI();
+    // The old scenario-switching UI is removed. Baselines are now managed in the Compare tab.
+    $('#btnSaveBaseline').onclick = () => {
+        const name = prompt('Enter a name for the new baseline:');
+        if (name) {
+            BM.addBaseline(name);
+        }
+    };
     $('#btnOpenCompare') && ($('#btnOpenCompare').onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $('[data-tab="compare"]').classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#compare').classList.add('active'); buildCompare(); });
-    $('#btnSetBaseline').onclick=()=>{ const sel=$('#baselineSelect'); const vals=Array.from(sel.selectedOptions).map(o=>o.value); SC.setBaselines(vals); buildCompare(); };
+    // The btnSetBaseline is also removed, as checkboxes now trigger the comparison update.
+    // The other btnScenario* buttons were not in the HTML, so their handlers are inert.
 
     // I/O
     $('#btnExportCSV').onclick=exportCSV;

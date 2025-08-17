@@ -2692,7 +2692,7 @@
                 <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
             </div>
         </div>
-        <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view">
+        <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view" tabindex="0">
             <div class="floating-toolbar">
             <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
             <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
@@ -2701,7 +2701,7 @@
             <svg id="gantt" class="gantt" role="list" aria-label="Project timeline"></svg>
             <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
         </section>
-        <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view">
+        <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view" tabindex="0">
             <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships"></svg>
         </section>
         <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view">
@@ -2771,7 +2771,7 @@
         </section>
         </main>
     </section>
-    <aside class="panel" id="side">
+    <aside class="panel" id="side" tabindex="-1">
       <h3>Context</h3>
       <div class="skeleton"></div>
     </aside>
@@ -3287,7 +3287,14 @@ function renderGraph(project, cpm){
         metaText.textContent = `${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}`;
         node.appendChild(metaText);
 
-        node.addEventListener('click', ()=>{ toggleSelect(t.id); renderGraph(project,cpm); });
+        node.addEventListener('click', (ev)=>{
+          if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+            toggleSelect(t.id);
+          } else {
+            selectOnly(t.id);
+          }
+          refresh();
+        });
         g.appendChild(node);
     }
 }
@@ -3401,7 +3408,14 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
+    bar.addEventListener('click', (ev)=>{
+      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+        toggleSelect(t.id);
+      } else {
+        selectOnly(t.id);
+      }
+      refresh();
+    });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
 
@@ -3480,6 +3494,103 @@ function renderIssues(project, cpm, targetSel){
     const div=document.createElement('div'); div.className='issue sev-'+it.sev; const sub = it.taskId? `<span class="meta">Task: ${esc(it.taskId)}</span>`:''; const btn = it.hasFix && !targetSel? `<div class="actions"><button class="btn small fix-btn" data-i="${it.id}">Fix</button></div>`:''; div.innerHTML = `<div><div class="msg">${esc(it.msg)}</div>${sub}</div>${btn}`; box.appendChild(div);
   }
   if(!targetSel){ box.onclick=(e)=>{ const b=e.target.closest('.fix-btn'); if(!b) return; const id=b.getAttribute('data-i'); const fn=FIX[id]; if(typeof fn==='function'){ fn(); showToast('Applied fix'); refresh(); } }; $('#btnAutoFix').onclick=()=>{ const rank={info:1,warn:2,error:3,critical:4}; for(const it of issues){ if(it.hasFix && rank[it.sev]>=3){ const fn=FIX[it.id]; if(typeof fn==='function') fn(); } } showToast('Auto‑fix pass finished'); refresh(); }; }
+}
+
+function renderContextPanel(selectedId) {
+  const sidePanel = $('#side');
+  if (!selectedId) {
+    sidePanel.innerHTML = `<h3>Context</h3><div class="skeleton"></div><p style="text-align:center; color: var(--c-text-muted); padding: var(--space-4) 0;">No task selected.</p>`;
+    return;
+  }
+
+  const project = SM.get();
+  const cpm = computeCPM(project); // It's ok to recompute this for a single task view
+  const task = cpm.tasks.find(t => t.id === selectedId);
+
+  if (!task) {
+    sidePanel.innerHTML = `<h3>Context</h3><div class="skeleton"></div><p style="text-align:center; color: var(--c-text-muted); padding: var(--space-4) 0;">Task details not available.</p>`;
+    return;
+  }
+
+  const duration = parseDurationStrict(task.duration).days || 0;
+  const deps = normalizeDeps(task).map(d => stringifyDep(d)).join(', ') || 'None';
+  const activeBtnText = task.active !== false ? 'Deactivate' : 'Activate';
+
+  const html = `
+    <h3 class="flex justify-between items-center" style="margin-bottom: var(--space-4);">
+      <span>Task Details</span>
+      ${task.critical ? '<span class="badge" style="background:var(--crit); color:white;">Critical</span>' : ''}
+    </h3>
+    <div class="context-panel-content" aria-live="polite">
+      <div class="card" style="margin-bottom: var(--space-4);">
+        <div class="card-content">
+          <div class="card-label" style="font-weight: 700; color: var(--c-text); margin-bottom: var(--space-1);">${esc(task.name)}</div>
+          <code style="color: var(--c-text-muted); font-size: 0.8em;">ID: ${esc(task.id)}</code>
+        </div>
+      </div>
+
+      <div class="list" style="display: grid; gap: var(--space-2); margin-bottom: var(--space-6);">
+        <div class="row" style="justify-content: space-between;"><strong>Duration</strong> <span class="badge">${duration} days</span></div>
+        <div class="row" style="justify-content: space-between;"><strong>Slack</strong> <span class="badge">${task.slack} days</span></div>
+        <div class="row" style="justify-content: space-between;"><strong>Status</strong> <span>${task.active !== false ? 'Active' : 'Inactive'}</span></div>
+        <div class="row" style="flex-direction: column; align-items: flex-start; border-top: 1px solid var(--c-border); padding-top: var(--space-2); margin-top: var(--space-2);">
+          <strong>Dependencies</strong>
+          <code style="word-break: break-all; background: var(--c-bg); padding: var(--space-2); border-radius: var(--radius-sm); margin-top: var(--space-1); width: 100%;">${esc(deps)}</code>
+        </div>
+      </div>
+
+      <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin-bottom: var(--space-3);">CPM Timings (days)</h4>
+      <div class="cards" style="grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm); margin-bottom: var(--space-6);">
+          <div class="card metric-card" style="padding: var(--space-2); text-align: center;"><div class="card-content"><div class="card-label">ES</div><div class="metric" style="font-size: 1.2rem;">${task.es}</div></div></div>
+          <div class="card metric-card" style="padding: var(--space-2); text-align: center;"><div class="card-content"><div class="card-label">EF</div><div class="metric" style="font-size: 1.2rem;">${task.ef}</div></div></div>
+          <div class="card metric-card" style="padding: var(--space-2); text-align: center;"><div class="card-content"><div class="card-label">LS</div><div class="metric" style="font-size: 1.2rem;">${task.ls}</div></div></div>
+          <div class="card metric-card" style="padding: var(--space-2); text-align: center;"><div class="card-content"><div class="card-label">LF</div><div class="metric" style="font-size: 1.2rem;">${task.lf}</div></div></div>
+      </div>
+
+      <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin-bottom: var(--space-3);">Actions</h4>
+      <div class="button-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
+        <button class="btn" id="ctx-btn-edit" title="Focus the editor fields for this task in the left sidebar">Edit</button>
+        <button class="btn" id="ctx-btn-duplicate">Duplicate</button>
+        <button class="btn" id="ctx-btn-toggle-active">${activeBtnText}</button>
+        <button class="btn error" id="ctx-btn-delete">Delete</button>
+      </div>
+    </div>
+  `;
+  sidePanel.innerHTML = html;
+
+  // Add event listeners for the buttons.
+  $('#ctx-btn-edit').addEventListener('click', () => {
+    selectOnly(task.id);
+    refresh(); // to make sure inline editor is rendered
+    const inlineEditor = $('#inlineEdit');
+    if (inlineEditor) {
+      inlineEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      inlineEditor.style.transition = 'none';
+      inlineEditor.style.backgroundColor = 'var(--accent-light)';
+      setTimeout(() => {
+          inlineEditor.style.transition = 'background-color 0.5s';
+          inlineEditor.style.backgroundColor = '';
+      }, 500);
+    }
+  });
+
+  $('#ctx-btn-duplicate').addEventListener('click', () => {
+    selectOnly(task.id);
+    duplicateSelected();
+  });
+
+  $('#ctx-btn-toggle-active').addEventListener('click', () => {
+    const currentStatus = task.active !== false;
+    SM.updateTask(task.id, { active: !currentStatus }, { name: currentStatus ? 'Deactivate Task' : 'Activate Task' });
+    refresh();
+  });
+
+  $('#ctx-btn-delete').addEventListener('click', () => {
+    if (confirm(`Are you sure you want to delete task "${task.name}"?`)) {
+      selectOnly(task.id);
+      deleteSelected();
+    }
+  });
 }
 
 // ----------------------------[ SCENARIO MANAGEMENT ]----------------------------
@@ -3679,7 +3790,13 @@ function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.
   }
   box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
 }
-function updateSelBadge(){ $('#selBadge').textContent = `${SEL.size} selected`; $('#bulkCount').textContent=String(SEL.size); $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size)); renderInlineEditor(); }
+function updateSelBadge(){
+  $('#selBadge').textContent = `${SEL.size} selected`;
+  $('#bulkCount').textContent=String(SEL.size);
+  $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
+  renderInlineEditor();
+  renderContextPanel(LAST_SEL);
+}
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
     const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDurationStrict(t.duration).days + n); }
@@ -3856,10 +3973,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
         e.preventDefault(); deleteSelected();
       }else if((e.ctrlKey||e.metaKey) && k.toLowerCase()==='d'){
         e.preventDefault(); duplicateSelected();
-      }else if(k==='ArrowDown' || k==='ArrowRight'){
-        e.preventDefault(); moveSelection(1);
-      }else if(k==='ArrowUp' || k==='ArrowLeft'){
-        e.preventDefault(); moveSelection(-1);
       } else if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
         const helpModal = document.getElementById('help-modal');
@@ -3883,6 +3996,32 @@ window.addEventListener('DOMContentLoaded', ()=>{
     ZTL=makeZoomPan($('#gantt')); const ZGR=makeZoomPan($('#graphSvg'));
     $('#zoomInTL').onclick=ZTL.zoomIn; $('#zoomOutTL').onclick=ZTL.zoomOut; $('#zoomResetTL').onclick=ZTL.fit;
     $('#zoomInGR').onclick=ZGR.zoomIn; $('#zoomOutGR').onclick=ZGR.zoomOut; $('#zoomResetGR').onclick=ZGR.fit;
+
+    // View-specific keyboard navigation
+    const viewKeydownHandler = (e) => {
+      if (['ArrowDown', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        moveSelection(1);
+      } else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
+        e.preventDefault();
+        moveSelection(-1);
+      } else if (e.key === 'Enter') {
+        if (LAST_SEL) {
+          e.preventDefault();
+          const sidePanel = $('#side');
+          sidePanel.focus();
+          // Flash the panel to give a visual cue
+          sidePanel.style.transition = 'none';
+          sidePanel.style.boxShadow = '0 0 0 2px var(--c-accent)';
+          setTimeout(() => {
+            sidePanel.style.transition = 'box-shadow 0.4s ease-out';
+            sidePanel.style.boxShadow = '';
+          }, 400);
+        }
+      }
+    };
+    $('#timeline').addEventListener('keydown', viewKeydownHandler);
+    $('#graph').addEventListener('keydown', viewKeydownHandler);
 
     // Templates
     $('#btnInsertTpl').onclick=()=> {

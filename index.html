@@ -2477,6 +2477,7 @@
           <span aria-hidden="true" style="margin-right: .5em;">🎨</span> Theme: Light/Dark
         </button>
       </div>
+      <span id="calcBadge" class="badge" style="display:none;margin-left:.5rem;background:var(--info);color:white;">Calculating…</span>
     </div>
   </header>
 
@@ -2857,6 +2858,8 @@
  */
 
 let ZTL; // Zoom/pan helper for the timeline
+let ZGR; // Zoom/pan helper for the graph
+let GRAPH_READY = false;
 
 // ----------------------------[ UTILITIES ]----------------------------
 // A collection of small, reusable utility functions.
@@ -2868,6 +2871,7 @@ function fmtDate(d){ return d.toISOString().slice(0,10); }
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function debounce(fn, delay=180){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), delay); }; }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function uid(prefix='t'){ return prefix+'_'+Math.random().toString(36).slice(2,8); }
 function slug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); }
@@ -3210,63 +3214,35 @@ const WarningEngine = (function() {
 })();
 
 // ----------------------------[ CRITICAL PATH METHOD (CPM) ENGINE ]----------------------------
-// Core logic for calculating the critical path, task schedules, and slack.
+// Offloaded to a Web Worker to keep the UI responsive.
 // -----------------------------------------------------------------------------------------
-function computeCPM(project){
-  const cal = makeCalendar(project.calendar, new Set(project.holidays||[]));
-  const active = project.tasks.filter(t=>t.active!==false);
-  const id2 = Object.fromEntries(active.map(t=>[t.id,t]));
-
-  // Build predecessor and successor maps for easy graph traversal
-  const predMap = new Map(active.map(t=>[t.id, normalizeDeps(t).filter(e=>id2[e.pred]) ]));
-  const succMap = new Map(active.map(t=>[t.id, []]));
-  for(const [sid,edges] of predMap){ for(const e of edges){ if(!succMap.has(e.pred)) succMap.set(e.pred,[]); succMap.get(e.pred).push({to:sid, type:e.type, lag:e.lag}); } }
-
-  // Topological sort using Kahn's algorithm to get a linear ordering of tasks
-  const indeg = new Map(active.map(t=>[t.id,0]));
-  for(const [sid,edges] of predMap){ for(const e of edges){ indeg.set(sid, (indeg.get(sid)||0)+1); } }
-  const q=[]; for(const t of active){ if((indeg.get(t.id)||0)===0) q.push(t.id); }
-  const order=[]; while(q.length){ const u=q.shift(); order.push(u); for(const arc of (succMap.get(u)||[])){ const v=arc.to; indeg.set(v, (indeg.get(v)||0)-1); if(indeg.get(v)===0) q.push(v); } }
-
-  const usable=active.filter(t=>order.includes(t.id));
-
-  // Forward pass: Calculate Early Start (ES) and Early Finish (EF)
-  const ES={}, EF={}; const warnings=[];
-  for(const id of order){ const t=id2[id]; if(!t) continue; const dur = parseDurationStrict(t.duration).days||0; let baseES=0; for(const e of (predMap.get(id)||[])){
-      const p=e.pred; const type=e.type; const lag=e.lag|0; const esP = ES[p]||0; const efP = EF[p]||0;
-      if(type==='FS') baseES=Math.max(baseES, efP + lag);
-      else if(type==='SS') baseES=Math.max(baseES, esP + lag);
-      else if(type==='FF') baseES=Math.max(baseES, efP + lag - dur);
-      else if(type==='SF') baseES=Math.max(baseES, esP + lag - dur);
+let _cpmWorker;
+let _cpmReq = 0;
+const _cpmPending = new Map();
+const _calcBadge = document.getElementById('calcBadge');
+function computeCPM(project, {drop=true}={}){
+  if(!_cpmWorker){
+    const blob = new Blob([document.querySelector('#cpm-worker').textContent],{type:'text/javascript'});
+    _cpmWorker = new Worker(URL.createObjectURL(blob));
+    _cpmWorker.onmessage = e=>{
+      const {id,cpm} = e.data;
+      const resolve = _cpmPending.get(id);
+      if(resolve){
+        _cpmPending.delete(id);
+        if(_cpmPending.size===0 && _calcBadge) _calcBadge.style.display='none';
+        SM.setCPMWarnings(cpm.warnings||[]);
+        resolve(cpm);
+      }
+    };
   }
-  const sc = t.startConstraint || (t.fixedStart!=null ? {type:'SNET', day:t.fixedStart|0} : null);
-  if(sc){ if(sc.type==='SNET') baseES = Math.max(baseES, sc.day|0); else if(sc.type==='MSO'){ if(baseES > (sc.day|0)) warnings.push({sev:'error', msg:`MSO violated for ${t.name}: deps force start ${baseES} > ${sc.day}`, taskId:t.id}); baseES = Math.max(baseES, sc.day|0); } }
-  ES[id]=baseES; EF[id]=baseES + dur; }
-  const projectFinish = Math.max(0, ...order.map(id=>EF[id]||0));
-
-  // Backward pass: Calculate Late Start (LS) and Late Finish (LF)
-  const LF={}, LS={};
-  const orderRev = order.slice().reverse();
-  for(const id of orderRev){ const t=id2[id]; if(!t) continue; const dur=parseDurationStrict(t.duration).days||0; let baseLF = projectFinish; const succs = succMap.get(id)||[]; if(succs.length===0){ baseLF = projectFinish; }
-    for(const arc of succs){ const s=arc.to; const type=arc.type; const lag=arc.lag|0; const lsS = LS[s]; const lfS = LF[s]; if(lsS==null || lfS==null) continue;
-      if(type==='FS') baseLF = Math.min(baseLF, lsS - lag);
-      else if(type==='SS') baseLF = Math.min(baseLF, (LS[id]==null? (lsS - lag) + dur : Math.min(LF[id]||Infinity, (lsS - lag) + dur) ));
-      else if(type==='FF') baseLF = Math.min(baseLF, lfS - lag);
-      else if(type==='SF') baseLF = Math.min(baseLF, (lfS - lag));
-    }
-    LF[id] = baseLF; LS[id] = baseLF - dur; }
-
-  // Combine results and calculate slack and critical path
-  const out = usable.map(t=>({ ...t,
-    es:ES[t.id]||0, ef:EF[t.id]||parseDurationStrict(t.duration).days||0,
-    ls:LS[t.id]||0, lf:LF[t.id]||parseDurationStrict(t.duration).days||0,
-    slack: (LS[t.id]??0)-(ES[t.id]??0),
-    start: cal.add(parseDate(project.startDate), ES[t.id]||0),
-    finish: cal.add(parseDate(project.startDate), EF[t.id]||0),
-    critical: (LS[t.id]??0)===(ES[t.id]??0)
-  }));
-  SM.setCPMWarnings(warnings);
-  return {order, tasks: out, finishDays: projectFinish};
+  if(drop){
+    _cpmPending.forEach(r=>r(null));
+    _cpmPending.clear();
+  }
+  const id = ++_cpmReq;
+  if(_calcBadge) _calcBadge.style.display='inline-block';
+  _cpmWorker.postMessage({type:'compute', id, project});
+  return new Promise(res=> _cpmPending.set(id, res));
 }
 
 // ----------------------------[ ISSUE VALIDATION ENGINE ]----------------------------
@@ -3386,6 +3362,15 @@ function InteractionManager(svg, options = {}) {
     Z.onChange = (fn) => { listeners.push(fn); };
 
     return Z;
+}
+
+function initGraphView(){
+  if(!ZGR){
+    ZGR = InteractionManager($('#graphSvg'));
+    $('#zoomInGR').onclick=ZGR.zoomIn;
+    $('#zoomOutGR').onclick=ZGR.zoomOut;
+    $('#zoomResetGR').onclick=ZGR.fit;
+  }
 }
 
 
@@ -3876,7 +3861,7 @@ function renderIssues(project, cpm, targetSel) {
     }
 }
 
-function renderContextPanel(selectedId) {
+async function renderContextPanel(selectedId) {
   const sidePanel = $('#side');
   if (!selectedId) {
     sidePanel.innerHTML = `<h3>Context</h3><div class="skeleton"></div><p style="text-align:center; color: var(--c-text-muted); padding: var(--space-4) 0;">No task selected.</p>`;
@@ -3884,7 +3869,8 @@ function renderContextPanel(selectedId) {
   }
 
   const project = SM.get();
-  const cpm = computeCPM(project); // It's ok to recompute this for a single task view
+  const cpm = await computeCPM(project,{drop:false}); // It's ok to recompute this for a single task view
+  if(!cpm) return;
   const task = cpm.tasks.find(t => t.id === selectedId);
 
   if (!task) {
@@ -3983,7 +3969,7 @@ function renderContextPanel(selectedId) {
   $('#ctx-btn-toggle-active').addEventListener('click', () => {
     const currentStatus = task.active !== false;
     SM.updateTask(task.id, { active: !currentStatus }, { name: currentStatus ? 'Deactivate Task' : 'Activate Task' });
-    refresh();
+    await refresh();
   });
 
   $('#ctx-btn-delete').addEventListener('click', () => {
@@ -4028,7 +4014,7 @@ function updateBaselineUI(){
   }
 }
 let CURRENT_BASELINE=null;
-function buildCompare(){
+async function buildCompare(){
   const baseProj=CURRENT_BASELINE? SM.getBaseline(CURRENT_BASELINE): null;
   const curProj=SM.get();
   const L=$('#cmpList');
@@ -4040,11 +4026,14 @@ function buildCompare(){
     L.innerHTML='<div class="issue sev-info"><div class="msg">Select a baseline.</div></div>';
     return;
   }
-  const B=computeCPM(curProj);
+  const [B,A] = await Promise.all([
+    computeCPM(curProj,{drop:false}),
+    computeCPM(baseProj,{drop:false})
+  ]);
+  if(!B || !A) return;
   const calB=makeCalendar(curProj.calendar, new Set(curProj.holidays||[]));
   const finishB=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
   $('#cmpFinishB').textContent=finishB;
-  const A=computeCPM(baseProj);
   const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
   const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
   const delta=(B.finishDays||0)-(A.finishDays||0);
@@ -4223,14 +4212,25 @@ function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.fo
 function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{4}-\d{2}-\d{2}$/); if(m){ out.push(t); } }
   return out; }
 
-function refresh(){ const s=SM.get(); const cpm=computeCPM(s); renderGantt(s, cpm); renderGraph(s, cpm); renderFocus(s, cpm); renderIssues(s, cpm); $('#boot').style.display='none'; $('#appRoot').style.display='grid'; if($('.tab.active').dataset.tab==='compare') buildCompare(); }
+ async function refresh(){
+  const s=SM.get();
+  const cpm=await computeCPM(s);
+  if(!cpm) return;
+  renderGantt(s, cpm);
+  if(GRAPH_READY) renderGraph(s, cpm);
+  renderFocus(s, cpm);
+  renderIssues(s, cpm);
+  $('#boot').style.display='none';
+  $('#appRoot').style.display='grid';
+  if($('.tab.active').dataset.tab==='compare') await buildCompare();
+ }
 
 function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'}); $('#startDate').value=todayStr(); $('#calendarMode').value='workdays'; $('#holidayInput').value=''; clearSelection(); refresh(); }
 
 // ----------------------------[ APPLICATION BOOTSTRAP ]----------------------------
 // Main entry point of the application. Initializes the UI and sets up event listeners.
 // -------------------------------------------------------------------------------------
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
   try{
     // Fallback for browsers that do not support input[type="date"]
     (function() {
@@ -4282,7 +4282,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     SM.onChange(()=>{ $('#btnUndo').disabled=!SM.canUndo(); $('#btnRedo').disabled=!SM.canRedo(); updateSelBadge(); });
 
     // tabs
-    $$('.tab').forEach(t=> t.onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#'+t.dataset.tab).classList.add('active'); if(t.dataset.tab==='compare') buildCompare(); });
+    $$('.tab').forEach(t=> t.onclick=async()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#'+t.dataset.tab).classList.add('active'); if(t.dataset.tab==='compare') await buildCompare(); if(t.dataset.tab==='graph'){ GRAPH_READY=true; initGraphView(); refresh(); } });
 
     // controls
     $('#slackThreshold').onchange = refresh;
@@ -4317,11 +4317,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
     startDateInput.addEventListener('change', handleStartDateChange);
     startDateInput.addEventListener('blur', handleStartDateChange);
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
-    $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), computeCPM(SM.get())); };
+    $('#severityFilter').onchange = async ()=>{ const cpm=await computeCPM(SM.get(),{drop:false}); if(cpm) renderIssues(SM.get(), cpm); };
     $('#filterText').oninput = ()=>{ refresh(); };
     $('#groupBy').onchange = refresh;
     $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
-    $('#btnSelectFiltered').onclick=()=>{ const cpm=computeCPM(SM.get()); computeCPM; const ids=new Set(cpm.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
+    $('#btnSelectFiltered').onclick=async()=>{ const cpm=await computeCPM(SM.get(),{drop:false}); if(!cpm) return; const ids=new Set(cpm.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
     $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
 
     // bulk
@@ -4333,8 +4333,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#scenarioSelect') && ($('#scenarioSelect').onchange=(e)=>{ SC.switchTo(e.target.value); refresh(); });
     $('#btnScenarioNew') && ($('#btnScenarioNew').onclick=()=>{ const name=prompt('New scenario name'); if(!name) return; SC.saveAs(name); refresh(); });
     $('#btnScenarioSaveAs') && ($('#btnScenarioSaveAs').onclick=()=>{ const name=prompt('Save current as…'); if(!name) return; SC.saveAs(name); refresh(); });
-    $('#btnOpenCompare') && ($('#btnOpenCompare').onclick=()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $('[data-tab="compare"]').classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#compare').classList.add('active'); buildCompare(); });
-    $('#btnUseBaseline') && ($('#btnUseBaseline').onclick=()=>{ const id=$('#baselineSelect').value; CURRENT_BASELINE=id; buildCompare(); });
+    $('#btnOpenCompare') && ($('#btnOpenCompare').onclick=async()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $('[data-tab="compare"]').classList.add('active'); $$('.view').forEach(v=>v.classList.remove('active')); $('#compare').classList.add('active'); await buildCompare(); });
+    $('#btnUseBaseline') && ($('#btnUseBaseline').onclick=async()=>{ const id=$('#baselineSelect').value; CURRENT_BASELINE=id; await buildCompare(); });
     $('#btnAddBaseline') && ($('#btnAddBaseline').onclick=()=>{ const name=prompt('Baseline name'); if(!name) return; SM.addBaseline(name); updateBaselineUI(); });
 
     // I/O
@@ -4394,9 +4394,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     })();
 
     // Zoom/Pan controls
-    ZTL=InteractionManager($('#gantt')); const ZGR=InteractionManager($('#graphSvg'));
+    ZTL=InteractionManager($('#gantt'));
     $('#zoomInTL').onclick=ZTL.zoomIn; $('#zoomOutTL').onclick=ZTL.zoomOut; $('#zoomResetTL').onclick=ZTL.fit;
-    $('#zoomInGR').onclick=ZGR.zoomIn; $('#zoomOutGR').onclick=ZGR.zoomOut; $('#zoomResetGR').onclick=ZGR.fit;
 
     // View-specific keyboard navigation
     const viewKeydownHandler = (e) => {
@@ -4740,11 +4739,13 @@ function enhanceTimelineReadability() {
   requestAnimationFrame(() => tagNarrowInbarLabels(svg));
 }
 
-// Hook into your existing lifecycle
-window.addEventListener('resize', enhanceTimelineReadability, { passive: true });
-document.getElementById('zoomInTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
-document.getElementById('zoomOutTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
-document.getElementById('zoomResetTL')?.addEventListener('click', () => setTimeout(enhanceTimelineReadability, 0));
+  // Hook into your existing lifecycle
+  const debouncedEnhance = debounce(enhanceTimelineReadability, 180);
+  window.addEventListener('resize', debouncedEnhance, { passive: true });
+  document.getElementById('zoomInTL')?.addEventListener('click', debouncedEnhance);
+  document.getElementById('zoomOutTL')?.addEventListener('click', debouncedEnhance);
+  document.getElementById('zoomResetTL')?.addEventListener('click', debouncedEnhance);
+  ZTL && ZTL.onChange && ZTL.onChange(debouncedEnhance);
 
 // Call after initial render; if your app already exposes renderGantt, patch it:
 const _renderGanttOrig = window.renderGantt;
@@ -4830,6 +4831,101 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
   }
 
 })();
+</script>
+<script id="cpm-worker" type="javascript/worker">
+function parseDate(s){ return new Date(s+'T00:00:00'); }
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function parseDurationStrict(v){
+  if(typeof v==='number'){
+    if(!Number.isInteger(v) || v<0) return {error:'Duration must be a non‑negative integer (days).'};
+    return {days:v};
+  }
+  const s=String(v||'').trim();
+  if(s==='') return {error:'Duration is required.'};
+  const m=s.match(/^(\d+)\s*([dw])?$/i);
+  if(!m) return {error:'Use number of days or Nd/Nw (e.g., 10 or 3w).'};
+  const n=parseInt(m[1],10); const u=(m[2]||'d').toLowerCase();
+  if(n<0) return {error:'Duration cannot be negative.'};
+  const days = u==='w'? n*5 : n;
+  return {days};
+}
+function parseDepToken(token){
+  const s=String(token||'').trim(); if(!s) return null;
+  let type='FS'; let rest=s; const colon=s.indexOf(':');
+  if(colon>0){ const t=s.slice(0,colon).toUpperCase(); if(['FS','SS','FF','SF'].includes(t)){ type=t; rest=s.slice(colon+1); } }
+  let pred=rest; let lag=0;
+  const m = rest.match(/^(.*?)([+-])(\d+)([dw])?$/i);
+  if(m){ pred=m[1]; const sign=m[2]==='-'?-1:1; const n=parseInt(m[3],10); const u=(m[4]||'d').toLowerCase(); lag = sign * (u==='w'? n*5 : n); }
+  pred=pred.trim();
+  return {type, pred, lag};
+}
+function normalizeDeps(task){ const raw=task.deps||[]; const arr=[]; for(const tok of raw){ const p=parseDepToken(tok); if(!p) continue; arr.push(p); } return arr; }
+function makeCalendar(mode, holidaysSet){
+  const isHoliday = d=> holidaysSet.has(fmtDate(d));
+  function isWorkday(d){ return mode==='calendar'? true : (!isWeekend(d) && !isHoliday(d)); }
+  function addBusinessDays(start, n){ let d=new Date(start); let step=n>=0?1:-1; let count=0; while(count!==n){ d.setDate(d.getDate()+step); if(isWorkday(d)) count+=step; } return d; }
+  function diffBusinessDays(start, end){ let d=new Date(start); let n=0; const step=start<end?1:-1; while((step>0? d<end : d>end)){ d.setDate(d.getDate()+step); if(isWorkday(d)) n+=step; } return n; }
+  return {
+    mode,
+    isWorkday,
+    add:(start,n)=> mode==='calendar'? addDays(start,n): addBusinessDays(start,n),
+    diff:(start,end)=> mode==='calendar'? daysBetween(start,end): diffBusinessDays(start,end)
+  };
+}
+function computeCPM(project){
+  const cal = makeCalendar(project.calendar, new Set(project.holidays||[]));
+  const active = project.tasks.filter(t=>t.active!==false);
+  const id2 = Object.fromEntries(active.map(t=>[t.id,t]));
+  const predMap = new Map(active.map(t=>[t.id, normalizeDeps(t).filter(e=>id2[e.pred]) ]));
+  const succMap = new Map(active.map(t=>[t.id, []]));
+  for(const [sid,edges] of predMap){ for(const e of edges){ if(!succMap.has(e.pred)) succMap.set(e.pred,[]); succMap.get(e.pred).push({to:sid, type:e.type, lag:e.lag}); } }
+  const indeg = new Map(active.map(t=>[t.id,0]));
+  for(const [sid,edges] of predMap){ for(const e of edges){ indeg.set(sid, (indeg.get(sid)||0)+1); } }
+  const q=[]; for(const t of active){ if((indeg.get(t.id)||0)===0) q.push(t.id); }
+  const order=[]; while(q.length){ const u=q.shift(); order.push(u); for(const arc of (succMap.get(u)||[])){ const v=arc.to; indeg.set(v, (indeg.get(v)||0)-1); if(indeg.get(v)===0) q.push(v); } }
+  const usable=active.filter(t=>order.includes(t.id));
+  const ES={}, EF={}; const warnings=[];
+  for(const id of order){ const t=id2[id]; if(!t) continue; const dur = parseDurationStrict(t.duration).days||0; let baseES=0; for(const e of (predMap.get(id)||[])){
+      const p=e.pred; const type=e.type; const lag=e.lag|0; const esP = ES[p]||0; const efP = EF[p]||0;
+      if(type==='FS') baseES=Math.max(baseES, efP + lag);
+      else if(type==='SS') baseES=Math.max(baseES, esP + lag);
+      else if(type==='FF') baseES=Math.max(baseES, efP + lag - dur);
+      else if(type==='SF') baseES=Math.max(baseES, esP + lag - dur);
+  }
+  const sc = t.startConstraint || (t.fixedStart!=null ? {type:'SNET', day:t.fixedStart|0} : null);
+  if(sc){ if(sc.type==='SNET') baseES = Math.max(baseES, sc.day|0); else if(sc.type==='MSO'){ if(baseES > (sc.day|0)) warnings.push({sev:'error', msg:`MSO violated for ${t.name}: deps force start ${baseES} > ${sc.day}`, taskId:t.id}); baseES = Math.max(baseES, sc.day|0); } }
+  ES[id]=baseES; EF[id]=baseES + dur; }
+  const projectFinish = Math.max(0, ...order.map(id=>EF[id]||0));
+  const LF={}, LS={};
+  const orderRev = order.slice().reverse();
+  for(const id of orderRev){ const t=id2[id]; if(!t) continue; const dur=parseDurationStrict(t.duration).days||0; let baseLF = projectFinish; const succs = succMap.get(id)||[]; if(succs.length===0){ baseLF = projectFinish; }
+    for(const arc of succs){ const s=arc.to; const type=arc.type; const lag=arc.lag|0; const lsS = LS[s]; const lfS = LF[s]; if(lsS==null || lfS==null) continue;
+      if(type==='FS') baseLF = Math.min(baseLF, lsS - lag);
+      else if(type==='SS') baseLF = Math.min(baseLF, (LS[id]==null? (lsS - lag) + dur : Math.min(LF[id]||Infinity, (lsS - lag) + dur) ));
+      else if(type==='FF') baseLF = Math.min(baseLF, lfS - lag);
+      else if(type==='SF') baseLF = Math.min(baseLF, (lfS - lag));
+    }
+    LF[id] = baseLF; LS[id] = baseLF - dur; }
+  const out = usable.map(t=>({ ...t,
+    es:ES[t.id]||0, ef:EF[t.id]||parseDurationStrict(t.duration).days||0,
+    ls:LS[t.id]||0, lf:LF[t.id]||parseDurationStrict(t.duration).days||0,
+    slack: (LS[t.id]??0)-(ES[t.id]??0),
+    start: cal.add(parseDate(project.startDate), ES[t.id]||0),
+    finish: cal.add(parseDate(project.startDate), EF[t.id]||0),
+    critical: (LS[t.id]??0)===(ES[t.id]??0)
+  }));
+  return {order, tasks: out, finishDays: projectFinish, warnings};
+}
+self.onmessage = e=>{
+  const {type,id,project} = e.data;
+  if(type==='compute'){
+    const cpm = computeCPM(project);
+    self.postMessage({type:'result', id, cpm});
+  }
+};
 </script>
 <script id="action-menu-controller">
 (function() {

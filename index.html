@@ -2457,6 +2457,7 @@
       <h1>HPC/AI Planner</h1>
     </div>
     <div class="header-right">
+      <button class="btn" id="btnHelp" aria-label="Show help" title="Show help">❓</button>
       <button class="btn" id="toggle-theme">Theme</button>
       <button class="btn" id="toggle-density">Density</button>
       <button class="btn accent" id="primary-action" aria-haspopup="true" aria-controls="action-menu" aria-expanded="false">Action</button>
@@ -2792,8 +2793,8 @@
   <div class="modal" id="help-modal" role="dialog" aria-labelledby="helpModalTitle" aria-hidden="true" style="z-index: 1001;">
     <div class="panel">
       <header style="justify-content: space-between;">
-        <h1 id="helpModalTitle">Keyboard Shortcuts</h1>
-        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('help-modal').style.display = 'none';">×</button>
+        <h1 id="helpModalTitle">Help &amp; Shortcuts</h1>
+        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('help-modal').style.display='none';">×</button>
       </header>
       <div class="p-lg" style="display: grid; grid-template-columns: auto 1fr; gap: var(--spacing-sm) var(--spacing-lg); align-items: center;">
         <kbd>Ctrl/Cmd + Z</kbd> <span>Undo last action</span>
@@ -2801,12 +2802,17 @@
         <kbd>Delete</kbd> <span>Delete selected tasks</span>
         <kbd>Ctrl/Cmd + D</kbd> <span>Duplicate selected tasks</span>
         <kbd>↑</kbd> / <kbd>↓</kbd> <span>Navigate task list</span>
+        <kbd>Ctrl/Cmd + Shift + A</kbd> <span>Open Action menu</span>
         <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
         <kbd>Ctrl/Cmd + S</kbd> <span>Save Project</span>
         <kbd>Ctrl/Cmd + O</kbd> <span>Open Project</span>
         <kbd>Ctrl/Cmd + P</kbd> <span>Print / PDF</span>
         <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <kbd>Ctrl + Scroll</kbd> <span>Zoom timeline/graph</span>
+        <kbd>Scroll / Drag</kbd> <span>Pan view (Shift+Scroll for horizontal)</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
         <kbd>?</kbd> or <kbd>F1</kbd> <span>Show this help dialog</span>
+        <span style="grid-column: 1 / -1;">Feedback? <a href="https://github.com/your-org/HPCProjectAssistant/issues" target="_blank" rel="noopener">GitHub Issues</a></span>
       </div>
     </div>
   </div>
@@ -4602,7 +4608,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
       }
     };
     $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
-    $('#btnGuide').onclick=()=>document.getElementById('help-modal').style.display = 'flex';
+    ['btnGuide','btnHelp'].forEach(id=>{
+      const b=document.getElementById(id);
+      if(b) b.onclick=()=>document.getElementById('help-modal').style.display='flex';
+    });
 
     // theme
     const btnToggleTheme = $('#btnToggleTheme');
@@ -4633,6 +4642,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
         e.preventDefault(); deleteSelected();
       }else if((e.ctrlKey||e.metaKey) && k.toLowerCase()==='d'){
         e.preventDefault(); duplicateSelected();
+      } else if((e.ctrlKey||e.metaKey) && e.shiftKey && k.toLowerCase()==='a'){
+        e.preventDefault(); $('#primary-action').click();
       } else if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
         const helpModal = document.getElementById('help-modal');

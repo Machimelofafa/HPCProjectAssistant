@@ -2252,6 +2252,45 @@
     }
   }
 
+  .header-right {
+    position: relative;
+  }
+
+  #action-menu {
+    position: absolute;
+    top: calc(100% + var(--spacing-xs));
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 0;
+    min-width: 160px;
+  }
+
+  #action-menu[hidden] {
+    display: none;
+  }
+
+  #action-menu button {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: none;
+    border: 0;
+    text-align: left;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  #action-menu button:hover,
+  #action-menu button:focus {
+    background: var(--accent-light);
+    color: var(--bg);
+    outline: none;
+  }
+
   /* --- A11Y & PRINT --- */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -2399,7 +2438,14 @@
     <div class="header-right">
       <button class="btn" id="toggle-theme">Theme</button>
       <button class="btn" id="toggle-density">Density</button>
-      <button class="btn accent" id="primary-action">Action</button>
+      <button class="btn accent" id="primary-action" aria-haspopup="true" aria-expanded="false">Action</button>
+      <div id="action-menu" role="menu" aria-labelledby="primary-action" hidden>
+        <button type="button" role="menuitem" tabindex="-1" id="action-export-json">Export JSON</button>
+        <button type="button" role="menuitem" tabindex="-1" id="action-import-json">Import JSON</button>
+        <button type="button" role="menuitem" tabindex="-1" id="action-export-png">Export PNG</button>
+        <button type="button" role="menuitem" tabindex="-1" id="action-reset-demo">Reset demo</button>
+        <button type="button" role="menuitem" tabindex="-1" id="action-theme-toggle">Theme: Light</button>
+      </div>
     </div>
   </header>
 
@@ -3962,6 +4008,127 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     This app needs JavaScript enabled.
   </div>
 </noscript>
+<script id="action-menu-logic">
+(function(){
+  const actionBtn = document.getElementById('primary-action');
+  const menu = document.getElementById('action-menu');
+  const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+  let index = 0;
+
+  function updateThemeLabel(){
+    const isDark = document.documentElement.classList.contains('dark-mode');
+    document.getElementById('action-theme-toggle').textContent = 'Theme: ' + (isDark ? 'Light' : 'Dark');
+  }
+
+  function openMenu(){
+    menu.hidden = false;
+    actionBtn.setAttribute('aria-expanded','true');
+    updateThemeLabel();
+    index = 0;
+    items[index].focus();
+    document.addEventListener('click', onDocClick);
+  }
+
+  function closeMenu(){
+    menu.hidden = true;
+    actionBtn.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', onDocClick);
+  }
+
+  function onDocClick(e){
+    if(!menu.contains(e.target) && e.target !== actionBtn) closeMenu();
+  }
+
+  function focusItem(i){
+    index = (i + items.length) % items.length;
+    items[index].focus();
+  }
+
+  menu.addEventListener('keydown', (e)=>{
+    switch(e.key){
+      case 'Escape': e.preventDefault(); closeMenu(); actionBtn.focus(); break;
+      case 'ArrowDown': e.preventDefault(); focusItem(index+1); break;
+      case 'ArrowUp': e.preventDefault(); focusItem(index-1); break;
+      case 'Tab': e.preventDefault(); focusItem(index + (e.shiftKey ? -1 : 1)); break;
+    }
+  });
+
+  actionBtn.addEventListener('click', ()=> menu.hidden ? openMenu() : closeMenu());
+  actionBtn.addEventListener('keydown', (e)=>{
+    if(['Enter',' ','Space','ArrowDown'].includes(e.key)){
+      e.preventDefault();
+      if(menu.hidden) openMenu();
+    }
+  });
+
+  document.getElementById('action-export-json').addEventListener('click', ()=>{
+    const json = JSON.stringify(SM.get(), null, 2);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], {type:'application/json'}));
+    a.download = 'project.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    closeMenu();
+  });
+
+  document.getElementById('action-import-json').addEventListener('click', ()=>{
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/json';
+    inp.addEventListener('change', async ()=>{
+      const file = inp.files[0];
+      if(!file) return;
+      try{
+        const text = await file.text();
+        const data = JSON.parse(text);
+        SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}, {name:'Import JSON'});
+        refresh();
+      }catch(err){ alert('Invalid JSON'); }
+    });
+    inp.click();
+    closeMenu();
+  });
+
+  document.getElementById('action-export-png').addEventListener('click', ()=>{
+    const svg = document.getElementById('gantt');
+    if(!svg) return;
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(svg);
+    const rect = svg.getBoundingClientRect();
+    const canvas = document.createElement('canvas');
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([source], {type:'image/svg+xml;charset=utf-8'}));
+    img.onload = function(){
+      ctx.drawImage(img,0,0);
+      URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'timeline.png';
+      a.click();
+    };
+    img.src = url;
+    closeMenu();
+  });
+
+  document.getElementById('action-reset-demo').addEventListener('click', ()=>{
+    SM.setProjectProps({startDate: todayStr(), calendar:'workdays', holidays: []}, {record:false, name:'Reset Demo'});
+    SM.replaceTasks(templateHPC(), {record:false, name:'Reset Demo Tasks'});
+    refresh();
+    closeMenu();
+  });
+
+  document.getElementById('action-theme-toggle').addEventListener('click', ()=>{
+    document.getElementById('toggle-theme').click();
+    updateThemeLabel();
+    closeMenu();
+  });
+
+  document.getElementById('toggle-theme').addEventListener('click', updateThemeLabel);
+})();
+</script>
 <script id="ui-visibility-enhancements">
 (function() {
   'use strict';

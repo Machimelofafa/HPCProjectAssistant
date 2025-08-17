@@ -2459,6 +2459,7 @@
     <div class="header-right">
       <button class="btn" id="toggle-theme">Theme</button>
       <button class="btn" id="toggle-density">Density</button>
+      <button class="btn" id="btn-help" aria-label="Help">?</button>
       <button class="btn accent" id="primary-action" aria-haspopup="true" aria-controls="action-menu" aria-expanded="false">Action</button>
       <div id="action-menu" class="action-menu" role="menu" aria-labelledby="primary-action" style="display: none;">
         <button role="menuitem" class="menu-item" id="action-export-json">
@@ -2807,6 +2808,33 @@
         <kbd>Ctrl/Cmd + P</kbd> <span>Print / PDF</span>
         <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
         <kbd>?</kbd> or <kbd>F1</kbd> <span>Show this help dialog</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="new-help-modal" role="dialog" aria-labelledby="newHelpModalTitle" aria-hidden="true" style="z-index: 1001; display: none;">
+    <div class="panel">
+      <header style="justify-content: space-between;">
+        <h1 id="newHelpModalTitle">Help & Shortcuts</h1>
+        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('new-help-modal').style.display = 'none';">×</button>
+      </header>
+      <div class="p-lg" style="display: grid; grid-template-columns: auto 1fr; gap: var(--spacing-sm) var(--spacing-lg); align-items: center;">
+        <kbd>Ctrl/Cmd + Z</kbd> <span>Undo last action</span>
+        <kbd>Ctrl/Cmd + Y</kbd> <span>Redo last action</span>
+        <kbd>Delete</kbd> <span>Delete selected tasks</span>
+        <kbd>Ctrl/Cmd + D</kbd> <span>Duplicate selected tasks</span>
+        <kbd>↑</kbd> / <kbd>↓</kbd> <span>Navigate task list</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <kbd>Ctrl + Mouse Wheel</kbd> <span>Zoom in/out</span>
+        <kbd>Mouse Wheel</kbd> <span>Pan vertically</span>
+        <kbd>Shift + Mouse Wheel</kbd> <span>Pan horizontally</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <kbd>?</kbd> or <kbd>F1</kbd> <span>Show this help dialog</span>
+        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
+        <div style="grid-column: 1 / -1; text-align: center;">
+          <p>For more information, see the <a href="README.md" target="_blank">README</a> file.</p>
+          <p>We welcome your feedback! Please <a href="https://github.com/user-repo/job-12-polish-docs/issues" target="_blank">open an issue</a> on our GitHub page.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -4635,7 +4663,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
         e.preventDefault(); duplicateSelected();
       } else if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
-        const helpModal = document.getElementById('help-modal');
+        const helpModal = document.getElementById('new-help-modal');
         helpModal.style.display = helpModal.style.display === 'flex' ? 'none' : 'flex';
       } else if (e.ctrlKey || e.metaKey) {
         switch(k.toLowerCase()) {
@@ -4859,6 +4887,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
       $('#toggle-theme').click(); // Reuse existing button's logic
       const isDark = document.documentElement.classList.contains('dark-mode');
       showToast(`Theme switched to ${isDark ? 'Dark' : 'Light'} Mode.`);
+    });
+
+    // 6. Help Modal
+    $('#btn-help').addEventListener('click', () => {
+      const helpModal = document.getElementById('new-help-modal');
+      helpModal.style.display = 'flex';
     });
 
   }catch(err){

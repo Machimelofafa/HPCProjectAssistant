@@ -986,6 +986,15 @@
   .sev-warn{border-left-color: var(--warn)}
   .sev-error{border-left-color: var(--error)}
   .sev-critical{border-left-color: var(--crit)}
+
+  /* Severity badge colors */
+  .badge.sev-info{ background: var(--info); color: #000; }
+  .badge.sev-warn{ background: var(--warn); color: #000; }
+  .badge.sev-error{ background: var(--error); color: #fff; }
+  .badge.sev-critical{ background: var(--crit); color: #fff; }
+
+  /* Filter button active state */
+  #severityFilter button.active{ background: var(--c-accent); color: var(--c-accent-text); }
   
   .issue .meta{
     font-size: var(--font-size-sm);
@@ -2648,13 +2657,13 @@
             </summary>
             <div class="row" style="justify-content:flex-start; gap:.5rem">
               <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
-              <select id="severityFilter">
-                <option value="all">Show: All</option>
-                <option value="critical">Critical only</option>
-                <option value="error">Errors & up</option>
-                <option value="warn">Warnings & up</option>
-                <option value="info">Info only</option>
-              </select>
+              <div id="severityFilter" class="button-group">
+                <button class="btn small active" data-sev="all">All <span class="badge">0</span></button>
+                <button class="btn small" data-sev="info">Info <span class="badge">0</span></button>
+                <button class="btn small" data-sev="warn">Warn <span class="badge">0</span></button>
+                <button class="btn small" data-sev="error">Error <span class="badge">0</span></button>
+                <button class="btn small" data-sev="critical">Critical <span class="badge">0</span></button>
+              </div>
             </div>
             <div class="issues" id="issues"></div>
           </details>
@@ -3084,41 +3093,88 @@ function computeCPM(project){
 // ----------------------------[ ISSUE VALIDATION ENGINE ]----------------------------
 // Rule-based engine to collect validation issues, warnings, and errors in the project.
 // ------------------------------------------------------------------------------------
-function collectIssues(project, cpm){
-  const issues=[]; let seq=0; const FIX={};
-  const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
-  const seenIds=new Set(); const dupIds=new Set(); for(const t of project.tasks){ if(seenIds.has(t.id)) dupIds.add(t.id); seenIds.add(t.id); }
-  function push(sev, msg, opts={}){ const id='i_'+(++seq); const it={id, sev, msg, ...opts}; if(opts.fix){ FIX[id]=opts.fix; it.hasFix=true; } issues.push(it); }
+function checkProjectBasics(project, push){
   if(!project.startDate) push('error','Project start date is missing.',{fix:()=> SM.setProjectProps({startDate: todayStr()}, {name: 'Set Start Date'})});
-  if(dupIds.size){ push('critical',`Duplicate task ids: ${Array.from(dupIds).join(', ')}`,{fix:()=>{ const s=SM.get(); const used=new Set(); for(const t of s.tasks){ if(used.has(t.id)){ t.id = t.id+"_"+Math.random().toString(36).slice(2,5); } used.add(t.id); } SM.replaceTasks(s.tasks, {name: 'Fix Duplicate IDs'}); }}); }
+  const seenIds=new Set(); const dupIds=new Set();
+  for(const t of project.tasks){ if(seenIds.has(t.id)) dupIds.add(t.id); seenIds.add(t.id); }
+  if(dupIds.size){
+    push('critical',`Duplicate task ids: ${Array.from(dupIds).join(', ')}`,{fix:()=>{ const s=SM.get(); const used=new Set(); for(const t of s.tasks){ if(used.has(t.id)){ t.id=t.id+"_"+Math.random().toString(36).slice(2,5); } used.add(t.id); } SM.replaceTasks(s.tasks,{name:'Fix Duplicate IDs'}); }});
+  }
+}
+
+function checkTaskFields(project, push){
+  const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
   for(const t of project.tasks){
-    if(!t.id||String(t.id).trim()==='') push('error',`Task with empty id: "${t.name||'(no name)'}"`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x===t); T.id = uid('t'); SM.replaceTasks(s.tasks, {name: 'Fix Empty ID'});} });
-    if(!t.name||String(t.name).trim()==='') push('error',`Task ${t.id}: name is required.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.name = T.name && T.name.trim()? T.name : t.id; SM.replaceTasks(s.tasks, {name: 'Fix Empty Name'});} });
-    const pd=parseDurationStrict(t.duration); if(pd.error) push('error',`Task ${t.name||t.id}: ${pd.error}`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Duration'});} });
-    if(t.fixedStart!=null && (!Number.isInteger(t.fixedStart) || t.fixedStart<0)) push('error',`Task ${t.name}: fixedStart must be a non‑negative integer (days offset).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.fixedStart; SM.replaceTasks(s.tasks, {name: 'Fix Invalid fixedStart'});} });
-    if(t.startConstraint){ const sc=t.startConstraint; if(!sc || !['MSO','SNET'].includes(sc.type)) push('error',`Task ${t.name}: startConstraint.type must be MSO or SNET.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.startConstraint; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Type'});} }); if(sc && (sc.day==null || !Number.isInteger(sc.day) || sc.day<0)) push('error',`Task ${t.name}: startConstraint.day must be a non‑negative integer (days).`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint) T.startConstraint.day=0; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Day'});} }); }
+    if(!t.id||String(t.id).trim()==='') push('error',`Task with empty id: "${t.name||'(no name)'}"`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x===t); T.id=uid('t'); SM.replaceTasks(s.tasks,{name:'Fix Empty ID'});} });
+    if(!t.name||String(t.name).trim()==='') push('error',`Task ${t.id}: name is required.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.name = T.name && T.name.trim()? T.name : t.id; SM.replaceTasks(s.tasks,{name:'Fix Empty Name'});} });
+    const pd=parseDurationStrict(t.duration); if(pd.error) push('error',`Task ${t.name||t.id}: ${pd.error}`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks,{name:'Fix Invalid Duration'});} });
+    if(t.fixedStart!=null && (!Number.isInteger(t.fixedStart) || t.fixedStart<0)) push('error',`Task ${t.name}: fixedStart must be a non‑negative integer (days offset).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.fixedStart; SM.replaceTasks(s.tasks,{name:'Fix Invalid fixedStart'});} });
+    if(t.startConstraint){ const sc=t.startConstraint; if(!sc || !['MSO','SNET'].includes(sc.type)) push('error',`Task ${t.name}: startConstraint.type must be MSO or SNET.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.startConstraint; SM.replaceTasks(s.tasks,{name:'Fix Invalid Constraint Type'});} }); if(sc && (sc.day==null || !Number.isInteger(sc.day) || sc.day<0)) push('error',`Task ${t.name}: startConstraint.day must be a non‑negative integer (days).`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint) T.startConstraint.day=0; SM.replaceTasks(s.tasks,{name:'Fix Invalid Constraint Day'});} }); }
     const depStrings=t.deps||[];
     const seen=new Set();
-    for(const tok of depStrings){ const d=parseDepToken(tok); if(!d) continue; if(d.pred===t.id) push('critical',`Task ${t.name}: self‑dependency not allowed (${tok}).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.deps=(T.deps||[]).filter(x=>x!==tok); SM.replaceTasks(s.tasks, {name: 'Remove Self-Dependency'});} });
-      if(!id2[d.pred]) push('error',`Task ${t.name}: missing dependency "${d.pred}".`,{taskId:t.id, fix:()=>{ const s=SM.get(); const pred={id:d.pred||uid('t'), name:`Placeholder: ${d.pred||'pred'}`, duration:1, deps:[]}; s.tasks.push(pred); SM.addTasks([pred], {name: 'Add Missing Dependency'});} });
-      if(seen.has(d.pred)) push('warn',`Task ${t.name}: duplicate dependency on ${d.pred}.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); const seen2=new Set(); T.deps=(T.deps||[]).filter(x=>{ const p=parseDepToken(x); if(!p) return false; if(seen2.has(p.pred)) return false; seen2.add(p.pred); return true; }); SM.replaceTasks(s.tasks, {name: 'Remove Duplicate Dependency'});} });
+    for(const tok of depStrings){
+      const d=parseDepToken(tok); if(!d) continue;
+      if(d.pred===t.id) push('critical',`Task ${t.name}: self‑dependency not allowed (${tok}).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.deps=(T.deps||[]).filter(x=>x!==tok); SM.replaceTasks(s.tasks,{name:'Remove Self-Dependency'});} });
+      if(!id2[d.pred]) push('error',`Task ${t.name}: missing dependency "${d.pred}".`,{taskId:t.id, fix:()=>{ const s=SM.get(); const pred={id:d.pred||uid('t'), name:`Placeholder: ${d.pred||'pred'}`, duration:1, deps:[]}; s.tasks.push(pred); SM.addTasks([pred],{name:'Add Missing Dependency'});} });
+      if(seen.has(d.pred)) push('warn',`Task ${t.name}: duplicate dependency on ${d.pred}.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); const seen2=new Set(); T.deps=(T.deps||[]).filter(x=>{ const p=parseDepToken(x); if(!p) return false; if(seen2.has(p.pred)) return false; seen2.add(p.pred); return true; }); SM.replaceTasks(s.tasks,{name:'Remove Duplicate Dependency'});} });
       seen.add(d.pred);
-      if(id2[d.pred] && id2[d.pred].active===false) push('warn',`Task ${t.name}: predecessor ${d.pred} is inactive.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const P=s.tasks.find(x=>x.id===d.pred); if(P){ P.active=true; SM.replaceTasks(s.tasks, {name: 'Activate Predecessor'});} }});
+      if(id2[d.pred] && id2[d.pred].active===false) push('warn',`Task ${t.name}: predecessor ${d.pred} is inactive.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const P=s.tasks.find(x=>x.id===d.pred); if(P){ P.active=true; SM.replaceTasks(s.tasks,{name:'Activate Predecessor'});} }});
     }
   }
+}
+
+function checkCycles(project, push){
   const cycles=findCycles(project.tasks);
-  for(const c of cycles){ const chain=c.join(' → '); push('critical',`Cycle detected: ${chain}`,{fix:()=>{ const s=SM.get(); const last=c[c.length-2]; const first=c[0]; const T=s.tasks.find(x=>x.id===last); if(T&&T.deps){ T.deps=T.deps.filter(tok=>{ const p=parseDepToken(tok); return !(p && p.pred===first); }); SM.replaceTasks(s.tasks, {name: 'Break Cycle'});} }}); }
-  if(cpm && cpm.tasks){ const map=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
-    for(const t of cpm.tasks){ const cur=id2[t.id]; if(!cur) continue;
-      if(cur.startConstraint && cur.startConstraint.type==='MSO'){
-        let esReq=0; for(const dep of normalizeDeps(cur)){ const p=map[dep.pred]; if(!p) continue; const dur=parseDurationStrict(cur.duration).days||0; if(dep.type==='FS') esReq=Math.max(esReq, p.ef + dep.lag); else if(dep.type==='SS') esReq=Math.max(esReq, p.es + dep.lag); else if(dep.type==='FF') esReq=Math.max(esReq, p.ef + dep.lag - dur); else if(dep.type==='SF') esReq=Math.max(esReq, p.es + dep.lag - dur); }
-        if(esReq > (cur.startConstraint.day|0)){
-          push('error',`MSO earlier than dependency bound for ${t.name} (MSO ${cur.startConstraint.day}d < required ${esReq}d).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint){ T.startConstraint.day=esReq; } SM.replaceTasks(s.tasks, {name: 'Fix MSO Violation'});} });
-        }
+  for(const c of cycles){
+    const chain=c.join(' → ');
+    push('critical',`Cycle detected: ${chain}`,{fix:()=>{ const s=SM.get(); const last=c[c.length-2]; const first=c[0]; const T=s.tasks.find(x=>x.id===last); if(T&&T.deps){ T.deps=T.deps.filter(tok=>{ const p=parseDepToken(tok); return !(p && p.pred===first); }); SM.replaceTasks(s.tasks,{name:'Break Cycle'});} }});
+  }
+}
+
+function checkConstraintClamps(project, cpm, push){
+  if(!cpm || !cpm.tasks) return;
+  const map=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
+  for(const t of cpm.tasks){
+    const cur=project.tasks.find(x=>x.id===t.id); if(!cur) continue;
+    if(cur.startConstraint && cur.startConstraint.type==='MSO'){
+      let esReq=0; for(const dep of normalizeDeps(cur)){ const p=map[dep.pred]; if(!p) continue; const dur=parseDurationStrict(cur.duration).days||0; if(dep.type==='FS') esReq=Math.max(esReq, p.ef + dep.lag); else if(dep.type==='SS') esReq=Math.max(esReq, p.es + dep.lag); else if(dep.type==='FF') esReq=Math.max(esReq, p.ef + dep.lag - dur); else if(dep.type==='SF') esReq=Math.max(esReq, p.es + dep.lag - dur); }
+      if(esReq > (cur.startConstraint.day|0)){
+        push('error',`MSO earlier than dependency bound for ${t.name} (MSO ${cur.startConstraint.day}d < required ${esReq}d).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint){ T.startConstraint.day=esReq; } SM.replaceTasks(s.tasks,{name:'Fix MSO Violation'});} });
       }
-      const dur=parseDurationStrict(cur.duration).days||0; if(dur===0 && !(String(cur.name||'').toLowerCase().includes('gate') || String(cur.phase||'').toLowerCase().includes('gate'))){ push('info',`Zero‑duration task: ${cur.name}. Consider a milestone (ok) or set to 1d.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Set Duration to 1d'});} }); }
+    }
+    if(cur.startConstraint && cur.startConstraint.type==='SNET'){
+      if(t.es < (cur.startConstraint.day|0)){
+        push('warn',`SNET clamps ${t.name} to ${cur.startConstraint.day}d (ES was ${t.es}d).`,{taskId:t.id});
+      }
     }
   }
+}
+
+function checkZeroDuration(project, cpm, push){
+  if(!cpm || !cpm.tasks) return;
+  const zero=cpm.tasks.filter(t=>{
+    const cur=project.tasks.find(x=>x.id===t.id); if(!cur) return false;
+    const dur=parseDurationStrict(cur.duration).days||0;
+    return dur===0 && !(String(cur.name||'').toLowerCase().includes('gate') || String(cur.phase||'').toLowerCase().includes('gate'));
+  });
+  if(zero.length){
+    const names=zero.map(t=>t.name).join(', ');
+    push('info',`Zero‑duration tasks: ${names}`);
+  }
+}
+
+function collectIssues(project, cpm){
+  const issues=[]; let seq=0; const FIX={}; const seen=new Set();
+  function push(severity, message, opts={}){
+    const key=(opts.taskId||'')+'|'+message; if(seen.has(key)) return; seen.add(key);
+    const id='i_'+(++seq); const it={id, message, severity, ...opts}; if(opts.fix){ FIX[id]=opts.fix; it.hasFix=true; }
+    issues.push(it);
+  }
+  checkProjectBasics(project, push);
+  checkTaskFields(project, push);
+  checkCycles(project, push);
+  checkConstraintClamps(project, cpm, push);
+  checkZeroDuration(project, cpm, push);
   return {issues, FIX};
 }
 
@@ -3569,15 +3625,41 @@ function renderFocus(project, cpm){
 
 function renderIssues(project, cpm, targetSel){
   const {issues, FIX} = collectIssues(project, cpm);
-  const filter=$('#severityFilter').value||'all';
   const box=$(targetSel||'#issues'); box.innerHTML='';
-  if(!issues.length){ const ok=document.createElement('div'); ok.className='issue sev-info'; ok.innerHTML='<span class="msg">No validation issues.</span><span class="meta">Real‑time checks clean</span>'; box.appendChild(ok); return; }
-  for(const it of issues){ if(filter!=='all'){
-      const rank={info:1,warn:2,error:3,critical:4}; if(rank[it.sev] < (filter==='info'?1: filter==='warn'?2: filter==='error'?3:4)) continue;
-    }
-    const div=document.createElement('div'); div.className='issue sev-'+it.sev; const sub = it.taskId? `<span class="meta">Task: ${esc(it.taskId)}</span>`:''; const btn = it.hasFix && !targetSel? `<div class="actions"><button class="btn small fix-btn" data-i="${it.id}">Fix</button></div>`:''; div.innerHTML = `<div><div class="msg">${esc(it.msg)}</div>${sub}</div>${btn}`; box.appendChild(div);
+  const filter=severityFilter;
+
+  const counts={all:issues.length, info:0,warn:0,error:0,critical:0};
+  for(const it of issues){ counts[it.severity]++; }
+  const bar=$('#severityFilter');
+  if(bar){
+    ['all','info','warn','error','critical'].forEach(sev=>{
+      const btn=bar.querySelector(`button[data-sev="${sev}"]`);
+      if(btn){ const badge=btn.querySelector('.badge'); if(badge) badge.textContent=counts[sev]||0; }
+    });
   }
-  if(!targetSel){ box.onclick=(e)=>{ const b=e.target.closest('.fix-btn'); if(!b) return; const id=b.getAttribute('data-i'); const fn=FIX[id]; if(typeof fn==='function'){ fn(); showToast('Applied fix'); refresh(); } }; $('#btnAutoFix').onclick=()=>{ const rank={info:1,warn:2,error:3,critical:4}; for(const it of issues){ if(it.hasFix && rank[it.sev]>=3){ const fn=FIX[it.id]; if(typeof fn==='function') fn(); } } showToast('Auto‑fix pass finished'); refresh(); }; }
+
+  if(!issues.length){ const ok=document.createElement('div'); ok.className='issue sev-info'; ok.innerHTML='<span class="msg">No validation issues.</span><span class="meta">Real‑time checks clean</span>'; box.appendChild(ok); return; }
+
+  const groups={critical:[], error:[], warn:[], info:[]};
+  for(const it of issues){ groups[it.severity].push(it); }
+
+  const rank={info:1,warn:2,error:3,critical:4};
+  const order=['critical','error','warn','info'];
+  for(const sev of order){
+    if(filter!=='all' && rank[sev] < rank[filter]) continue;
+    const list=groups[sev]; if(!list.length) continue;
+    const details=document.createElement('details'); details.className='issue-group'; details.open=true;
+    const summary=document.createElement('summary'); summary.innerHTML=`${sev.toUpperCase()} <span class="badge sev-${sev}">${list.length}</span>`; details.appendChild(summary);
+    for(const it of list){
+      const div=document.createElement('div'); div.className='issue sev-'+it.severity; const sub = it.taskId? `<span class="meta">Task: ${esc(it.taskId)}</span>`:''; const btn = it.hasFix && !targetSel? `<div class="actions"><button class="btn small fix-btn" data-i="${it.id}">Fix</button></div>`:''; div.innerHTML = `<div><div class="msg">${esc(it.message)}</div>${sub}</div>${btn}`; details.appendChild(div);
+    }
+    box.appendChild(details);
+  }
+
+  if(!targetSel){
+    box.onclick=(e)=>{ const b=e.target.closest('.fix-btn'); if(!b) return; const id=b.getAttribute('data-i'); const fn=FIX[id]; if(typeof fn==='function'){ fn(); showToast('Applied fix'); refresh(); } };
+    $('#btnAutoFix').onclick=()=>{ const rank={info:1,warn:2,error:3,critical:4}; for(const it of issues){ if(it.hasFix && rank[it.severity]>=3){ const fn=FIX[it.id]; if(typeof fn==='function') fn(); } } showToast('Auto‑fix pass finished'); refresh(); };
+  }
 }
 
 function renderContextPanel(selectedId) {
@@ -3590,6 +3672,11 @@ function renderContextPanel(selectedId) {
   const project = SM.get();
   const cpm = computeCPM(project); // It's ok to recompute this for a single task view
   const task = cpm.tasks.find(t => t.id === selectedId);
+  const {issues: allIssues} = collectIssues(project, cpm);
+  const taskIssues = allIssues.filter(it => it.taskId === selectedId);
+  const warnList = taskIssues.length
+    ? taskIssues.map(it=>`<div class="issue sev-${it.severity}"><div class="msg">${esc(it.message)}</div></div>`).join('')
+    : '<div class="issue sev-info"><div class="msg">No warnings.</div></div>';
 
   if (!task) {
     sidePanel.innerHTML = `<h3>Context</h3><div class="skeleton"></div><p style="text-align:center; color: var(--c-text-muted); padding: var(--space-4) 0;">Task details not available.</p>`;
@@ -3638,6 +3725,8 @@ function renderContextPanel(selectedId) {
         <button class="btn" id="ctx-btn-toggle-active">${activeBtnText}</button>
         <button class="btn error" id="ctx-btn-delete">Delete</button>
       </div>
+      <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin: var(--space-3) 0;">Warnings</h4>
+      <div class="issues" id="contextWarnings">${warnList}</div>
     </div>
   `;
   sidePanel.innerHTML = html;
@@ -3776,6 +3865,7 @@ function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header
 // ------------------------------------------------------------------------------------
 const SEL=new Set();
 let LAST_SEL=null;
+let severityFilter='all';
 function toggleSelect(id){
   if(SEL.has(id)){
     SEL.delete(id);
@@ -4000,7 +4090,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
     startDateInput.addEventListener('change', handleStartDateChange);
     startDateInput.addEventListener('blur', handleStartDateChange);
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
-    $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), computeCPM(SM.get())); };
+    const sevBar = $('#severityFilter');
+    if(sevBar){
+      sevBar.addEventListener('click', (e)=>{ const b=e.target.closest('button[data-sev]'); if(!b) return; severityFilter=b.getAttribute('data-sev'); sevBar.querySelectorAll('button').forEach(btn=>btn.classList.toggle('active', btn===b)); renderIssues(SM.get(), computeCPM(SM.get())); });
+    }
     $('#filterText').oninput = ()=>{ refresh(); };
     $('#groupBy').onchange = refresh;
     $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };

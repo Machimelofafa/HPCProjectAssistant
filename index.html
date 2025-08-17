@@ -2643,8 +2643,9 @@
           </details>
 
           <details>
-            <summary>
+            <summary style="display: flex; justify-content: space-between; align-items: center;">
               <h2>Validation & Warnings</h2>
+              <span id="warning-badges"></span>
             </summary>
             <div class="row" style="justify-content:flex-start; gap:.5rem">
               <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
@@ -3021,6 +3022,193 @@ const SM=(function(){
   return {get,set,setProjectProps,addTasks,replaceTasks,updateTask,onChange,setCPMWarnings,undo:undoOp,redo:redoOp,canUndo,canRedo,addBaseline,removeBaseline,getBaseline,listBaselines};
 })();
 
+// ----------------------------[ WARNING ENGINE ]----------------------------
+// Scans for potential issues and provides structured warnings.
+// --------------------------------------------------------------------------
+const WarningEngine = (function() {
+  let seq = 0;
+  function _push(warnings, FIX, sev, msg, opts = {}) {
+      const id = 'w_' + (++seq);
+      const it = { id, sev, msg, ...opts };
+      if (opts.fix) {
+          FIX[id] = opts.fix;
+          it.hasFix = true;
+      }
+      warnings.push(it);
+  }
+
+  function checkTaskProperties(project, cpm, warnings, FIX) {
+    const push = (...args) => _push(warnings, FIX, ...args);
+    const seenIds = new Set();
+    const dupIds = new Set();
+    for (const t of project.tasks) {
+        if (t.id && seenIds.has(t.id)) dupIds.add(t.id);
+        if (t.id) seenIds.add(t.id);
+    }
+
+    if (dupIds.size > 0) {
+        push('critical', `Duplicate task ID(s) found: ${Array.from(dupIds).join(', ')}`, {
+            fix: () => {
+                const s = SM.get();
+                const used = new Set();
+                s.tasks.forEach(t => {
+                    if (t.id && used.has(t.id)) {
+                        t.id = uid('t');
+                    }
+                    used.add(t.id);
+                });
+                SM.replaceTasks(s.tasks, { name: 'Fix Duplicate IDs' });
+            }
+        });
+    }
+
+    for (const t of project.tasks) {
+        if (!t.id || String(t.id).trim() === '') {
+            push('error', `Task found with missing ID.`, { taskId: t.id,
+                fix: () => { SM.updateTask(t.id, { id: uid('t') }, { name: 'Assign Missing ID' }); }
+            });
+        }
+        if (!t.name || String(t.name).trim() === '') {
+            push('error', `Task has a missing name.`, { taskId: t.id,
+                fix: () => { SM.updateTask(t.id, { name: `Task ${t.id}` }, { name: 'Assign Missing Name' }); }
+            });
+        }
+        const pd = parseDurationStrict(t.duration);
+        if (pd.error) {
+            push('error', `Invalid duration: ${pd.error}`, { taskId: t.id,
+                fix: () => { SM.updateTask(t.id, { duration: 1 }, { name: 'Fix Invalid Duration' }); }
+            });
+        }
+    }
+  }
+
+  function checkDependencies(project, cpm, warnings, FIX) {
+      const push = (...args) => _push(warnings, FIX, ...args);
+      const id2 = Object.fromEntries(project.tasks.map(t => [t.id, t]));
+
+      for (const t of project.tasks) {
+          const depStrings = t.deps || [];
+          const seen = new Set();
+          for (const tok of depStrings) {
+              const d = parseDepToken(tok);
+              if (!d) continue;
+              if (d.pred === t.id) {
+                  push('critical', `Self-dependency is not allowed.`, { taskId: t.id,
+                      fix: () => { SM.updateTask(t.id, { deps: (t.deps || []).filter(x => x !== tok) }, { name: 'Remove Self-Dependency' }); }
+                  });
+              }
+              if (!id2[d.pred]) {
+                  push('error', `Links to missing dependency: "${d.pred}".`, { taskId: t.id,
+                      fix: () => { SM.addTasks([{ id: d.pred, name: `New: ${d.pred}`, duration: 1, deps: [] }], { name: 'Add Missing Dependency' }); }
+                  });
+              }
+              if (seen.has(d.pred)) {
+                  push('warn', `Duplicate dependency on "${d.pred}".`, { taskId: t.id,
+                      fix: () => {
+                          const s = SM.get();
+                          const T = s.tasks.find(x => x.id === t.id);
+                          const seen2 = new Set();
+                          T.deps = (T.deps || []).filter(x => { const p = parseDepToken(x); if (!p || seen2.has(p.pred)) return false; seen2.add(p.pred); return true; });
+                          SM.replaceTasks(s.tasks, { name: 'Remove Duplicate Dependency' });
+                      }
+                  });
+              }
+              seen.add(d.pred);
+              if (id2[d.pred] && id2[d.pred].active === false) {
+                  push('warn', `Predecessor "${d.pred}" is inactive.`, { taskId: t.id,
+                      fix: () => { SM.updateTask(d.pred, { active: true }, { name: 'Activate Predecessor' }); }
+                  });
+              }
+          }
+      }
+  }
+
+  function checkCycles(project, cpm, warnings, FIX) {
+      const push = (...args) => _push(warnings, FIX, ...args);
+      const cycles = findCycles(project.tasks);
+      for (const c of cycles) {
+          const chain = c.join(' → ');
+          push('critical', `Circular dependency detected: ${chain}`, {
+              fix: () => {
+                  const s = SM.get();
+                  const last = c[c.length - 2];
+                  const first = c[0];
+                  const T = s.tasks.find(x => x.id === last);
+                  if (T && T.deps) {
+                      T.deps = T.deps.filter(tok => { const p = parseDepToken(tok); return !(p && p.pred === first); });
+                      SM.replaceTasks(s.tasks, { name: 'Break Cycle' });
+                  }
+              }
+          });
+      }
+  }
+
+  function checkSchedule(project, cpm, warnings, FIX) {
+      const push = (...args) => _push(warnings, FIX, ...args);
+      if (!project.startDate) {
+        push('error','Project start date is missing.', {
+          fix:()=> SM.setProjectProps({startDate: todayStr()}, {name: 'Set Start Date'})
+        });
+      }
+
+      if (!cpm || !cpm.tasks) return;
+      const cpmMap = Object.fromEntries(cpm.tasks.map(t => [t.id, t]));
+      const id2 = Object.fromEntries(project.tasks.map(t => [t.id, t]));
+
+      for (const t of cpm.tasks) {
+          const cur = id2[t.id];
+          if (!cur) continue;
+
+          if (cur.startConstraint && cur.startConstraint.type === 'MSO') {
+              const esReq = calcEarliestESFor(project, t.id, t.ef - t.es);
+              if (esReq > (cur.startConstraint.day | 0)) {
+                  push('error', `MSO violated: must start on/after day ${esReq}, but set to ${cur.startConstraint.day}.`, { taskId: t.id,
+                      fix: () => { SM.updateTask(t.id, { startConstraint: { ...cur.startConstraint, day: esReq } }, { name: 'Fix MSO Violation' }); }
+                  });
+              }
+          }
+          const dur = parseDurationStrict(cur.duration).days || 0;
+          const isMilestone = String(cur.name || '').toLowerCase().includes('gate') || String(cur.phase || '').toLowerCase().includes('gate');
+          if (dur === 0 && !isMilestone) {
+              push('info', `Zero-duration task. Consider making it a milestone or setting duration to 1d.`, { taskId: t.id,
+                  fix: () => { SM.updateTask(t.id, { duration: 1 }, { name: 'Set Duration to 1d' }); }
+              });
+          }
+      }
+  }
+
+  function run(project, cpm) {
+    const warnings = [];
+    const FIX = {};
+    seq = 0;
+
+    checkTaskProperties(project, cpm, warnings, FIX);
+    checkDependencies(project, cpm, warnings, FIX);
+    checkCycles(project, cpm, warnings, FIX);
+    checkSchedule(project, cpm, warnings, FIX);
+
+    // Add back warnings from CPM compute step (e.g. SNET clamps)
+    // These are not yet in the new engine, so we merge them.
+    const cpmWarnings = SM.lastCPMWarns || [];
+    warnings.push(...cpmWarnings);
+
+    // Deduplicate warnings
+    const seen = new Set();
+    const uniqueWarnings = [];
+    for (const w of warnings) {
+      const key = `${w.sev}|${w.msg}|${w.taskId || ''}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueWarnings.push(w);
+      }
+    }
+
+    return { warnings: uniqueWarnings, FIX };
+  }
+
+  return { run };
+})();
+
 // ----------------------------[ CRITICAL PATH METHOD (CPM) ENGINE ]----------------------------
 // Core logic for calculating the critical path, task schedules, and slack.
 // -----------------------------------------------------------------------------------------
@@ -3085,41 +3273,10 @@ function computeCPM(project){
 // Rule-based engine to collect validation issues, warnings, and errors in the project.
 // ------------------------------------------------------------------------------------
 function collectIssues(project, cpm){
-  const issues=[]; let seq=0; const FIX={};
-  const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
-  const seenIds=new Set(); const dupIds=new Set(); for(const t of project.tasks){ if(seenIds.has(t.id)) dupIds.add(t.id); seenIds.add(t.id); }
-  function push(sev, msg, opts={}){ const id='i_'+(++seq); const it={id, sev, msg, ...opts}; if(opts.fix){ FIX[id]=opts.fix; it.hasFix=true; } issues.push(it); }
-  if(!project.startDate) push('error','Project start date is missing.',{fix:()=> SM.setProjectProps({startDate: todayStr()}, {name: 'Set Start Date'})});
-  if(dupIds.size){ push('critical',`Duplicate task ids: ${Array.from(dupIds).join(', ')}`,{fix:()=>{ const s=SM.get(); const used=new Set(); for(const t of s.tasks){ if(used.has(t.id)){ t.id = t.id+"_"+Math.random().toString(36).slice(2,5); } used.add(t.id); } SM.replaceTasks(s.tasks, {name: 'Fix Duplicate IDs'}); }}); }
-  for(const t of project.tasks){
-    if(!t.id||String(t.id).trim()==='') push('error',`Task with empty id: "${t.name||'(no name)'}"`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x===t); T.id = uid('t'); SM.replaceTasks(s.tasks, {name: 'Fix Empty ID'});} });
-    if(!t.name||String(t.name).trim()==='') push('error',`Task ${t.id}: name is required.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.name = T.name && T.name.trim()? T.name : t.id; SM.replaceTasks(s.tasks, {name: 'Fix Empty Name'});} });
-    const pd=parseDurationStrict(t.duration); if(pd.error) push('error',`Task ${t.name||t.id}: ${pd.error}`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Duration'});} });
-    if(t.fixedStart!=null && (!Number.isInteger(t.fixedStart) || t.fixedStart<0)) push('error',`Task ${t.name}: fixedStart must be a non‑negative integer (days offset).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.fixedStart; SM.replaceTasks(s.tasks, {name: 'Fix Invalid fixedStart'});} });
-    if(t.startConstraint){ const sc=t.startConstraint; if(!sc || !['MSO','SNET'].includes(sc.type)) push('error',`Task ${t.name}: startConstraint.type must be MSO or SNET.`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); delete T.startConstraint; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Type'});} }); if(sc && (sc.day==null || !Number.isInteger(sc.day) || sc.day<0)) push('error',`Task ${t.name}: startConstraint.day must be a non‑negative integer (days).`,{fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint) T.startConstraint.day=0; SM.replaceTasks(s.tasks, {name: 'Fix Invalid Constraint Day'});} }); }
-    const depStrings=t.deps||[];
-    const seen=new Set();
-    for(const tok of depStrings){ const d=parseDepToken(tok); if(!d) continue; if(d.pred===t.id) push('critical',`Task ${t.name}: self‑dependency not allowed (${tok}).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.deps=(T.deps||[]).filter(x=>x!==tok); SM.replaceTasks(s.tasks, {name: 'Remove Self-Dependency'});} });
-      if(!id2[d.pred]) push('error',`Task ${t.name}: missing dependency "${d.pred}".`,{taskId:t.id, fix:()=>{ const s=SM.get(); const pred={id:d.pred||uid('t'), name:`Placeholder: ${d.pred||'pred'}`, duration:1, deps:[]}; s.tasks.push(pred); SM.addTasks([pred], {name: 'Add Missing Dependency'});} });
-      if(seen.has(d.pred)) push('warn',`Task ${t.name}: duplicate dependency on ${d.pred}.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); const seen2=new Set(); T.deps=(T.deps||[]).filter(x=>{ const p=parseDepToken(x); if(!p) return false; if(seen2.has(p.pred)) return false; seen2.add(p.pred); return true; }); SM.replaceTasks(s.tasks, {name: 'Remove Duplicate Dependency'});} });
-      seen.add(d.pred);
-      if(id2[d.pred] && id2[d.pred].active===false) push('warn',`Task ${t.name}: predecessor ${d.pred} is inactive.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const P=s.tasks.find(x=>x.id===d.pred); if(P){ P.active=true; SM.replaceTasks(s.tasks, {name: 'Activate Predecessor'});} }});
-    }
-  }
-  const cycles=findCycles(project.tasks);
-  for(const c of cycles){ const chain=c.join(' → '); push('critical',`Cycle detected: ${chain}`,{fix:()=>{ const s=SM.get(); const last=c[c.length-2]; const first=c[0]; const T=s.tasks.find(x=>x.id===last); if(T&&T.deps){ T.deps=T.deps.filter(tok=>{ const p=parseDepToken(tok); return !(p && p.pred===first); }); SM.replaceTasks(s.tasks, {name: 'Break Cycle'});} }}); }
-  if(cpm && cpm.tasks){ const map=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
-    for(const t of cpm.tasks){ const cur=id2[t.id]; if(!cur) continue;
-      if(cur.startConstraint && cur.startConstraint.type==='MSO'){
-        let esReq=0; for(const dep of normalizeDeps(cur)){ const p=map[dep.pred]; if(!p) continue; const dur=parseDurationStrict(cur.duration).days||0; if(dep.type==='FS') esReq=Math.max(esReq, p.ef + dep.lag); else if(dep.type==='SS') esReq=Math.max(esReq, p.es + dep.lag); else if(dep.type==='FF') esReq=Math.max(esReq, p.ef + dep.lag - dur); else if(dep.type==='SF') esReq=Math.max(esReq, p.es + dep.lag - dur); }
-        if(esReq > (cur.startConstraint.day|0)){
-          push('error',`MSO earlier than dependency bound for ${t.name} (MSO ${cur.startConstraint.day}d < required ${esReq}d).`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); if(T.startConstraint){ T.startConstraint.day=esReq; } SM.replaceTasks(s.tasks, {name: 'Fix MSO Violation'});} });
-        }
-      }
-      const dur=parseDurationStrict(cur.duration).days||0; if(dur===0 && !(String(cur.name||'').toLowerCase().includes('gate') || String(cur.phase||'').toLowerCase().includes('gate'))){ push('info',`Zero‑duration task: ${cur.name}. Consider a milestone (ok) or set to 1d.`,{taskId:t.id, fix:()=>{ const s=SM.get(); const T=s.tasks.find(x=>x.id===t.id); T.duration=1; SM.replaceTasks(s.tasks, {name: 'Set Duration to 1d'});} }); }
-    }
-  }
-  return {issues, FIX};
+  // The new WarningEngine is now the source of truth for issues.
+  // We just call it and return its results.
+  const { warnings, FIX } = WarningEngine.run(project, cpm);
+  return { issues: warnings, FIX };
 }
 
 // ----------------------------[ UI: ZOOM & PAN ]----------------------------
@@ -3567,17 +3724,156 @@ function renderFocus(project, cpm){
   renderIssues(project, cpm, '#focusWarnings');
 }
 
-function renderIssues(project, cpm, targetSel){
-  const {issues, FIX} = collectIssues(project, cpm);
-  const filter=$('#severityFilter').value||'all';
-  const box=$(targetSel||'#issues'); box.innerHTML='';
-  if(!issues.length){ const ok=document.createElement('div'); ok.className='issue sev-info'; ok.innerHTML='<span class="msg">No validation issues.</span><span class="meta">Real‑time checks clean</span>'; box.appendChild(ok); return; }
-  for(const it of issues){ if(filter!=='all'){
-      const rank={info:1,warn:2,error:3,critical:4}; if(rank[it.sev] < (filter==='info'?1: filter==='warn'?2: filter==='error'?3:4)) continue;
+function renderIssues(project, cpm, targetSel) {
+    const { issues, FIX } = collectIssues(project, cpm);
+
+    // Update severity badges
+    const counts = { critical: 0, error: 0, warn: 0, info: 0 };
+    for (const it of issues) {
+        if (counts[it.sev] !== undefined) {
+            counts[it.sev]++;
+        }
     }
-    const div=document.createElement('div'); div.className='issue sev-'+it.sev; const sub = it.taskId? `<span class="meta">Task: ${esc(it.taskId)}</span>`:''; const btn = it.hasFix && !targetSel? `<div class="actions"><button class="btn small fix-btn" data-i="${it.id}">Fix</button></div>`:''; div.innerHTML = `<div><div class="msg">${esc(it.msg)}</div>${sub}</div>${btn}`; box.appendChild(div);
-  }
-  if(!targetSel){ box.onclick=(e)=>{ const b=e.target.closest('.fix-btn'); if(!b) return; const id=b.getAttribute('data-i'); const fn=FIX[id]; if(typeof fn==='function'){ fn(); showToast('Applied fix'); refresh(); } }; $('#btnAutoFix').onclick=()=>{ const rank={info:1,warn:2,error:3,critical:4}; for(const it of issues){ if(it.hasFix && rank[it.sev]>=3){ const fn=FIX[it.id]; if(typeof fn==='function') fn(); } } showToast('Auto‑fix pass finished'); refresh(); }; }
+    const badgesContainer = $('#warning-badges');
+    if (badgesContainer) {
+        badgesContainer.innerHTML = ['critical', 'error', 'warn', 'info'].map(sev => {
+            if (counts[sev] > 0) {
+                return `<span class="badge sev-${sev}" style="background:var(--${sev});color:white;margin-left:4px;border-radius:6px;padding:2px 6px;font-size:0.8em;" title="${counts[sev]} ${sev} issues">${counts[sev]}</span>`;
+            }
+            return '';
+        }).join('');
+    }
+
+    const filter = $('#severityFilter').value || 'all';
+    const box = $(targetSel || '#issues');
+    box.innerHTML = '';
+
+    const rank = { info: 1, warn: 2, error: 3, critical: 4 };
+    const filterRankMap = { 'critical': 4, 'error': 3, 'warn': 2, 'info': 1 };
+    const filterRank = filterRankMap[filter.split(' ')[0]] || 0;
+
+    const filteredIssues = issues.filter(it => {
+        if (filter === 'all') return true;
+        if (filter === 'info') return it.sev === 'info';
+        return rank[it.sev] >= filterRank;
+    });
+
+    if (!filteredIssues.length) {
+        const ok = document.createElement('div');
+        ok.className = 'issue sev-info';
+        ok.innerHTML = '<span class="msg">No validation issues for this filter.</span>';
+        box.appendChild(ok);
+        return;
+    }
+
+    const groups = new Map();
+    for (const it of filteredIssues) {
+        if (!groups.has(it.msg)) {
+            groups.set(it.msg, []);
+        }
+        groups.get(it.msg).push(it);
+    }
+
+    for (const [msg, items] of groups) {
+        const details = document.createElement('details');
+        details.open = true; // Open by default
+
+        const firstItem = items[0];
+        const sev = firstItem.sev;
+        const hasFix = items.some(it => it.hasFix);
+
+        const summary = document.createElement('summary');
+        summary.className = `issue sev-${sev}`;
+        summary.style.display = 'grid';
+        summary.style.gridTemplateColumns = '1fr auto';
+        summary.style.alignItems = 'center';
+
+        const badge = `<span class="badge" style="background:var(--${sev});color:white;margin-left:8px;border-radius:6px;padding:2px 6px;font-size:0.8em;">${items.length}</span>`;
+        const fixButtonGroup = hasFix && !targetSel && items.length > 1 ? `<button class="btn small fix-btn" data-fix-group="${esc(msg)}">Fix All</button>` : '';
+
+        summary.innerHTML = `
+            <div class="msg">${esc(msg)} ${badge}</div>
+            <div class="actions">${fixButtonGroup}</div>
+        `;
+
+        details.appendChild(summary);
+
+        const list = document.createElement('div');
+        list.style.paddingLeft = '20px';
+        list.style.borderTop = '1px solid var(--line)';
+        list.style.paddingTop = '8px';
+        list.style.marginTop = '4px';
+
+
+        for (const it of items) {
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.style.justifyContent = 'space-between';
+            const taskName = it.taskId ? (project.tasks.find(t => t.id === it.taskId)?.name || it.taskId) : 'Project-wide';
+            const fixBtn = it.hasFix && !targetSel ? `<button class="btn small fix-btn" data-i="${it.id}">Fix</button>` : '';
+            row.innerHTML = `
+                <span class="meta" style="cursor:pointer; text-decoration:underline;" data-task-id="${it.taskId}">Task: ${esc(taskName)}</span>
+                <div class="actions">${fixBtn}</div>
+            `;
+            list.appendChild(row);
+        }
+        details.appendChild(list);
+        box.appendChild(details);
+    }
+
+    if (!targetSel) {
+        box.onclick = (e) => {
+            const b = e.target.closest('.fix-btn');
+            if (b) {
+              e.preventDefault();
+              const groupId = b.dataset.fixGroup;
+              if (groupId) {
+                  const itemsToFix = issues.filter(it => it.msg === groupId && it.hasFix);
+                  let fixedCount = 0;
+                  itemsToFix.forEach(it => { const fn = FIX[it.id]; if (typeof fn === 'function') { fn(); fixedCount++; } });
+                  if (fixedCount > 0) { showToast(`Applied ${fixedCount} fix(es).`); refresh(); }
+              } else {
+                  const id = b.dataset.i;
+                  const fn = FIX[id];
+                  if (typeof fn === 'function') { fn(); showToast('Applied fix'); refresh(); }
+              }
+              return;
+            }
+
+            const taskLink = e.target.closest('[data-task-id]');
+            if (taskLink) {
+              e.preventDefault();
+              const taskId = taskLink.dataset.taskId;
+              if (taskId) {
+                selectOnly(taskId);
+                refresh();
+                const bar = document.querySelector(`.bar[data-id="${taskId}"]`);
+                if (bar) {
+                  bar.scrollIntoView({behavior: 'smooth', block: 'center'});
+                  bar.style.transition = 'outline 0.1s';
+                  bar.style.outline = '2px solid var(--accent)';
+                  setTimeout(() => bar.style.outline = '', 1000);
+                }
+              }
+            }
+        };
+
+        $('#btnAutoFix').onclick = () => {
+            let fixedCount = 0;
+            for (const it of issues) {
+                if (it.hasFix && rank[it.sev] >= 3) {
+                    const fn = FIX[it.id];
+                    if (typeof fn === 'function') { fn(); fixedCount++; }
+                }
+            }
+            if(fixedCount > 0) {
+              showToast(`Auto-fix pass finished, applied ${fixedCount} fixes.`);
+              refresh();
+            } else {
+              showToast('No critical issues to auto-fix.');
+            }
+        };
+    }
 }
 
 function renderContextPanel(selectedId) {
@@ -3631,6 +3927,8 @@ function renderContextPanel(selectedId) {
           <div class="card metric-card" style="padding: var(--space-2); text-align: center;"><div class="card-content"><div class="card-label">LF</div><div class="metric" style="font-size: 1.2rem;">${task.lf}</div></div></div>
       </div>
 
+      <div id="context-panel-warnings"></div>
+
       <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin-bottom: var(--space-3);">Actions</h4>
       <div class="button-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
         <button class="btn" id="ctx-btn-edit" title="Focus the editor fields for this task in the left sidebar">Edit</button>
@@ -3641,6 +3939,25 @@ function renderContextPanel(selectedId) {
     </div>
   `;
   sidePanel.innerHTML = html;
+
+  // Render warnings into their dedicated container
+  const { issues } = collectIssues(project, cpm);
+  const taskIssues = issues.filter(it => it.taskId === selectedId);
+  const warningsContainer = sidePanel.querySelector('#context-panel-warnings');
+
+  if (taskIssues.length > 0 && warningsContainer) {
+      warningsContainer.innerHTML = `
+        <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin-bottom: var(--space-3); margin-top: var(--space-6);">Warnings for this Task</h4>
+        <div class="issues" style="margin:0; padding:0; max-height: 150px; overflow-y: auto;">
+            ${taskIssues.map(it => `
+                <div class="issue sev-${it.sev}" style="margin-bottom: var(--space-2);">
+                    <div class="msg">${esc(it.msg)}</div>
+                </div>
+            `).join('')}
+        </div>
+      `;
+  }
+
 
   // Add event listeners for the buttons.
   $('#ctx-btn-edit').addEventListener('click', () => {

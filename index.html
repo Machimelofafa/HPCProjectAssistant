@@ -24,7 +24,7 @@
     --bg: #fafbfc;
     --panel: #ffffff;
     --ink: #111827;
-    --muted: #4a5568;
+    --muted: #374151; /* improved contrast */
     --line: #cbd5e1;
     
     /* Primary colors with improved accessibility */
@@ -92,7 +92,7 @@
     --bg: #121821;
     --panel: #1a202c;
     --ink: #F3F4F6;
-    --muted: #a0aec0;
+    --muted: #cbd5e1; /* improved contrast */
     --line: #64748B;
     --accent: #90cdf4;
     --accent-light: #63b3ed;
@@ -2371,7 +2371,7 @@
       </pattern>
     </defs>
   </svg>
-  <a href="#appRoot" class="skip-link">Skip to main content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <header style="display:none">
     <div class="header-left">
       <h1>
@@ -2492,7 +2492,7 @@
     </div>
   </div>
   <div id="fatal"></div>
-  <main class="container grid" id="layout" style="display:grid">
+  <div class="container grid" id="layout" style="display:grid">
     <aside class="panel controls" id="left-panel">
       <div class="layout" id="appRoot">
         <details open>
@@ -2679,8 +2679,8 @@
             <div class="kpi card" id="kpiBlocked">Blocked: 3</div>
             <div class="kpi card" id="kpiMilestone">Next Milestone: 5d</div>
         </div>
-        <main role="main" aria-label="Project planning workspace">
-        <div class="tabs" role="tablist" aria-label="Project views">
+        <main id="main-content" aria-label="Project planning workspace">
+        <nav class="tabs" role="tablist" aria-label="Project views">
             <div class="tab active" data-tab="timeline" role="tab" aria-selected="true" aria-controls="timeline">Timeline</div>
             <div class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph">Dependency Graph</div>
             <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
@@ -2691,20 +2691,20 @@
                 <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
                 <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
             </div>
-        </div>
+        </nav>
         <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view" tabindex="0">
             <div class="floating-toolbar">
             <button class="btn small" id="zoomOutTL" aria-label="Zoom out timeline">−</button>
             <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
             <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
             </div>
-            <svg id="gantt" class="gantt" role="list" aria-label="Project timeline"></svg>
+            <svg id="gantt" class="gantt" role="img" aria-label="Project timeline" tabindex="0"></svg>
             <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
         </section>
         <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view" tabindex="0">
-            <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships"></svg>
+            <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships" tabindex="0"></svg>
         </section>
-        <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view">
+        <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view" tabindex="0">
             <div class="focus">
             <div class="focus-header">
                 <h2><span class="section-icon" aria-hidden="true">🎯</span> Project Overview</h2>
@@ -2753,7 +2753,7 @@
             </div>
             </div>
         </section>
-        <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view">
+        <section id="compare" class="view" role="tabpanel" aria-label="Project comparison view" tabindex="0">
             <div class="focus">
             <div class="row" style="gap:.5rem; align-items:center">
                 <label>Baseline <select id="baselineSelect" aria-label="Select baseline project for comparison"></select></label>
@@ -2776,7 +2776,7 @@
       <h3>Context</h3>
       <div class="skeleton"></div>
     </aside>
-  </main>
+  </div>
 
   <div class="hint" id="hint"></div>
   <div class="toast" id="toast"></div>

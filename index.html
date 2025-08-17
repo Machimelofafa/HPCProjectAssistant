@@ -2505,8 +2505,9 @@
               <span class="label-icon" aria-hidden="true">📅</span>
               Start date
             </label>
-            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp">
-            <div id="startDateHelp" class="sr-only">Select the project start date</div>
+            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp startDateError" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
+            <div id="startDateHelp" class="form-help">Select the project start date. Use arrow keys or type YYYY-MM-DD.</div>
+            <div id="startDateError" class="form-help error" aria-live="polite"></div>
           </div>
           <div class="row">
             <label for="calendarMode" class="label">
@@ -3751,7 +3752,29 @@ window.addEventListener('DOMContentLoaded', ()=>{
     // controls
     $('#slackThreshold').onchange = refresh;
     $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); refresh(); };
-    $('#startDate').onchange = ()=>{ SM.setProjectProps({startDate: $('#startDate').value||todayStr()}, {name: 'Change Start Date'}); refresh(); };
+
+    const startDateInput = $('#startDate');
+    const startDateError = $('#startDateError');
+    if(startDateInput.type !== 'date') startDateInput.type = 'text';
+    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+    const handleStartDate = () => {
+      const val = startDateInput.value.trim();
+      const valid = isoDate.test(val) && !isNaN(parseDate(val).getTime());
+      if(!valid){
+        startDateInput.classList.add('error');
+        startDateInput.setAttribute('aria-invalid','true');
+        startDateError.textContent = 'Enter a valid date as YYYY-MM-DD.';
+        return;
+      }
+      startDateInput.classList.remove('error');
+      startDateInput.removeAttribute('aria-invalid');
+      startDateError.textContent = '';
+      SM.setProjectProps({startDate: val}, {name: 'Change Start Date'});
+      refresh();
+    };
+    startDateInput.addEventListener('change', handleStartDate);
+    startDateInput.addEventListener('blur', handleStartDate);
+
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), computeCPM(SM.get())); };
     $('#filterText').oninput = ()=>{ refresh(); };

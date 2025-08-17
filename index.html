@@ -2980,6 +2980,8 @@ self.onmessage = function(e) {
 (function(){
 'use strict';
 
+const SCHEMA_VERSION = '1.0.0';
+
 /**
  * =============================================================================
  * Main application module.
@@ -3034,6 +3036,73 @@ function parseDurationStrict(v){
   if(n<0) return {error:'Duration cannot be negative.'};
   const days = u==='w'? n*5 : n;
   return {days};
+}
+
+function validateProject(project) {
+  const errors = [];
+  const warnings = [];
+  let migrated = false;
+
+  if (!project || typeof project !== 'object') {
+    errors.push({ sev: 'critical', msg: 'Invalid project file format. Expected a JSON object.' });
+    return { ok: false, errors, warnings, project };
+  }
+
+  const projectVersion = project.schemaVersion;
+
+  if (!projectVersion) {
+    warnings.push({ sev: 'warn', msg: 'No schemaVersion found. Assuming older format and attempting to migrate.' });
+    project.schemaVersion = '0.0.0'; // Assign a base version for migration logic
+  }
+
+  // --- MIGRATION LOGIC ---
+  if (project.schemaVersion < SCHEMA_VERSION) {
+    migrated = true;
+    // Example migration: from pre-1.0.0 where 'active' field might not exist
+    if (project.tasks && Array.isArray(project.tasks)) {
+      project.tasks.forEach(t => {
+        if (t.active === undefined) {
+          t.active = true;
+        }
+      });
+      warnings.push({ sev: 'info', msg: 'Project migrated to schema v1.0.0: ensured all tasks have an "active" status.' });
+    }
+    project.schemaVersion = SCHEMA_VERSION;
+  } else if (project.schemaVersion > SCHEMA_VERSION) {
+    errors.push({ sev: 'critical', msg: `Project schema version (${project.schemaVersion}) is newer than this application's supported version (${SCHEMA_VERSION}). Please update the application.` });
+    return { ok: false, errors, warnings, project };
+  }
+
+  // --- VALIDATION LOGIC ---
+  if (!project.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(project.startDate)) {
+    errors.push({ sev: 'error', msg: 'Project is missing a valid "startDate".' });
+    project.startDate = todayStr(); // Attempt to fix
+    warnings.push({ sev: 'warn', msg: 'Project "startDate" was missing or invalid. It has been reset to today.' });
+  }
+
+  if (!project.tasks || !Array.isArray(project.tasks)) {
+    errors.push({ sev: 'critical', msg: 'Project is missing a valid "tasks" array.' });
+    return { ok: false, errors, warnings, project };
+  }
+
+  const taskIds = new Set();
+  for (const task of project.tasks) {
+    if (!task.id) {
+        warnings.push({ sev: 'warn', msg: `A task is missing an ID. A new one will be generated.` });
+        task.id = uid('t');
+        migrated = true;
+    }
+    if (taskIds.has(task.id)) {
+        warnings.push({ sev: 'warn', msg: `Duplicate task ID found: ${task.id}. A new ID will be generated.` });
+        task.id = uid('t');
+        migrated = true;
+    }
+    taskIds.add(task.id);
+  }
+
+
+  const ok = !errors.some(e => e.sev === 'critical');
+  return { ok, errors, warnings, project, migrated };
 }
 
 // ----------------------------[ CALENDAR LOGIC ]----------------------------
@@ -4493,9 +4562,45 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // I/O
     $('#btnExportCSV').onclick=exportCSV;
-    $('#btnExportJSON').onclick=()=>{ const json=JSON.stringify(SM.get(), null, 2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download='project.json'; a.click(); URL.revokeObjectURL(a.href); };
-    $('#btnSave').onclick=()=> saveFile(JSON.stringify(SM.get(), null, 2));
-    $('#btnLoad').onclick=async()=>{ const data=await openFile(); if(!data) return; SM.set({startDate:data.startDate||todayStr(), calendar:data.calendar||'workdays', holidays:data.holidays||[], tasks:ensureIds(data.tasks||[])}, {name: 'Load Project'}); $('#startDate').value=SM.get().startDate; $('#calendarMode').value=SM.get().calendar; $('#holidayInput').value=(SM.get().holidays||[]).join(', '); clearSelection(); refresh(); };
+    $('#btnExportJSON').onclick=()=>{ const project = SM.get(); project.schemaVersion = SCHEMA_VERSION; const json=JSON.stringify(project, null, 2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download='project.json'; a.click(); URL.revokeObjectURL(a.href); };
+    $('#btnSave').onclick=()=> { const project = SM.get(); project.schemaVersion = SCHEMA_VERSION; saveFile(JSON.stringify(project, null, 2)); };
+    $('#btnLoad').onclick=async()=>{
+      const data=await openFile();
+      if(!data) return;
+
+      const { ok, errors, warnings, project, migrated } = validateProject(data);
+
+      if (errors.length > 0 || warnings.length > 0) {
+        let message = '';
+        if (errors.length > 0) {
+          message += 'Errors found during import:\n' + errors.map(e => `- ${e.msg}`).join('\\n');
+        }
+        if (warnings.length > 0) {
+          message += '\\n\\nWarnings:\\n' + warnings.map(w => `- ${w.msg}`).join('\\n');
+        }
+
+        if (!ok) {
+          alert('Import failed!\\n\\n' + message);
+          return;
+        } else {
+          if (!confirm('Project imported with some issues. Import anyway?\\n\\n' + message)) {
+            return;
+          }
+        }
+      }
+
+      SM.set(project, {name: 'Load Project'});
+      $('#startDate').value=SM.get().startDate;
+      $('#calendarMode').value=SM.get().calendar;
+      $('#holidayInput').value=(SM.get().holidays||[]).join(', ');
+      clearSelection();
+      refresh();
+      if (migrated) {
+        showToast('Project data was migrated to the latest version.');
+      } else {
+        showToast('Project loaded successfully.');
+      }
+    };
     $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
     $('#btnGuide').onclick=()=>document.getElementById('help-modal').style.display = 'flex';
 
@@ -4590,7 +4695,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // 1. Export JSON
     $('#action-export-json').addEventListener('click', () => {
-      const json = JSON.stringify(SM.get(), null, 2);
+      const project = SM.get();
+      project.schemaVersion = SCHEMA_VERSION;
+      const json = JSON.stringify(project, null, 2);
       const blob = new Blob([json], {type: 'application/json'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -4607,12 +4714,29 @@ window.addEventListener('DOMContentLoaded', ()=>{
       try {
         const data = await openFile();
         if (!data) return; // User cancelled
-        SM.set({
-          startDate: data.startDate || todayStr(),
-          calendar: data.calendar || 'workdays',
-          holidays: data.holidays || [],
-          tasks: ensureIds(data.tasks || [])
-        }, { name: 'Import Project' });
+
+        const { ok, errors, warnings, project, migrated } = validateProject(data);
+
+        if (errors.length > 0 || warnings.length > 0) {
+          let message = '';
+          if (errors.length > 0) {
+            message += 'Errors found during import:\\n' + errors.map(e => `- ${e.msg}`).join('\\n');
+          }
+          if (warnings.length > 0) {
+            message += '\\n\\nWarnings:\\n' + warnings.map(w => `- ${w.msg}`).join('\\n');
+          }
+
+          if (!ok) {
+            alert('Import failed!\\n\\n' + message);
+            return;
+          } else {
+            if (!confirm('Project imported with some issues. Import anyway?\\n\\n' + message)) {
+              return;
+            }
+          }
+        }
+
+        SM.set(project, { name: 'Import Project' });
 
         // Sync UI to new state
         $('#startDate').value = SM.get().startDate;
@@ -4620,7 +4744,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
         $('#holidayInput').value = (SM.get().holidays || []).join(', ');
         clearSelection();
         refresh();
-        showToast('Project imported successfully.');
+
+        if (migrated) {
+          showToast('Project data was migrated to the latest version.');
+        } else {
+          showToast('Project imported successfully.');
+        }
       } catch (e) {
         console.error("Import failed:", e);
         showToast('Error: Could not import file.');

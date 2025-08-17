@@ -2500,13 +2500,14 @@
             <h2><span class="section-icon" aria-hidden="true">📅</span> Project Settings</h2>
           </summary>
           <aside>
-          <div class="row">
+          <div class="row" style="flex-direction: column; align-items: flex-start;">
             <label for="startDate" class="label">
               <span class="label-icon" aria-hidden="true">📅</span>
               Start date
             </label>
-            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp">
-            <div id="startDateHelp" class="sr-only">Select the project start date</div>
+            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp startDateError">
+            <div id="startDateError" class="form-help error" style="display: none; margin-top: var(--space-1);"></div>
+            <div id="startDateHelp" class="form-help">Use YYYY-MM-DD format. Arrow keys change day, Shift+arrow for week, Alt+arrow for month.</div>
           </div>
           <div class="row">
             <label for="calendarMode" class="label">
@@ -3714,6 +3715,24 @@ function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holid
 // -------------------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', ()=>{
   try{
+    // Fallback for browsers that do not support input[type="date"]
+    (function() {
+      var input = document.createElement('input');
+      input.setAttribute('type', 'date');
+      // A simple trick to check for support:
+      // unsupported browsers will leave the value as is.
+      var notADateValue = 'not-a-date';
+      input.setAttribute('value', notADateValue);
+      if (input.value === notADateValue) {
+        var startDateInput = document.getElementById('startDate');
+        if (startDateInput) {
+          startDateInput.setAttribute('type', 'text');
+          startDateInput.setAttribute('placeholder', 'YYYY-MM-DD');
+          startDateInput.setAttribute('pattern', '\\d{4}-\\d{2}-\\d{2}');
+        }
+      }
+    })();
+
     setupLegend();
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
@@ -3751,7 +3770,35 @@ window.addEventListener('DOMContentLoaded', ()=>{
     // controls
     $('#slackThreshold').onchange = refresh;
     $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); refresh(); };
-    $('#startDate').onchange = ()=>{ SM.setProjectProps({startDate: $('#startDate').value||todayStr()}, {name: 'Change Start Date'}); refresh(); };
+    const startDateInput = $('#startDate');
+    const startDateError = $('#startDateError');
+
+    function handleStartDateChange() {
+      const value = startDateInput.value;
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+      // Use the project's own parseDate logic for consistency, then validate.
+      // This correctly handles invalid dates like 2025-02-30, which the Date constructor would shift.
+      const d = parseDate(value);
+      if (!dateRegex.test(value) || d.toISOString().slice(0,10) !== value) {
+        startDateError.textContent = 'Invalid date. Please use YYYY-MM-DD format for a valid date.';
+        startDateError.style.display = 'block';
+        startDateInput.classList.add('error');
+        return; // Do not update state if invalid
+      }
+
+      // If we reach here, the date is valid.
+      startDateError.style.display = 'none';
+      startDateInput.classList.remove('error');
+
+      // Only update state and refresh if the date is valid
+      SM.setProjectProps({startDate: value}, {name: 'Change Start Date'});
+      refresh();
+    }
+
+    // Replace the simple onchange with a more robust handler on both change and blur
+    startDateInput.addEventListener('change', handleStartDateChange);
+    startDateInput.addEventListener('blur', handleStartDateChange);
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), computeCPM(SM.get())); };
     $('#filterText').oninput = ()=>{ refresh(); };

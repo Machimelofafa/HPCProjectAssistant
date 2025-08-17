@@ -789,6 +789,7 @@
     fill: url(#stripes);
   }
   
+  .node.is-selected rect,
   .node.selected rect{
     stroke: var(--accent);
     stroke-width: 2;
@@ -846,6 +847,7 @@
     color: rgba(0,0,0,0.3); /* stripe color via currentColor */
   }
   
+  .gantt .bar.is-selected rect,
   .gantt .bar.selected rect{
     stroke: var(--accent);
     stroke-width: 2;
@@ -2698,7 +2700,7 @@
             <button class="btn small" id="zoomInTL" aria-label="Zoom in timeline">+</button>
             <button class="btn small" id="zoomResetTL" aria-label="Reset timeline zoom">Fit</button>
             </div>
-            <svg id="gantt" class="gantt" role="list" aria-label="Project timeline"></svg>
+            <svg id="gantt" class="gantt" role="list" aria-label="Project timeline" tabindex="0"></svg>
             <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
         </section>
         <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view">
@@ -2771,7 +2773,7 @@
         </section>
         </main>
     </section>
-    <aside class="panel" id="side">
+    <aside class="panel" id="side" role="complementary" aria-label="Task details" tabindex="-1">
       <h3>Context</h3>
       <div class="skeleton"></div>
     </aside>
@@ -3249,8 +3251,9 @@ function renderGraph(project, cpm){
         if(!p) continue;
         const node=document.createElementNS('http://www.w3.org/2000/svg','g');
         node.setAttribute('class','node'+(t.critical?' critical':''));
-        node.setAttribute('data-id',t.id);
-        if(SEL.has(t.id)) node.classList.add('selected');
+        node.setAttribute('data-task-id',t.id);
+        node.setAttribute('aria-selected', SEL.has(t.id)?'true':'false');
+        if(SEL.has(t.id)) node.classList.add('is-selected');
         const color=colorFor(t.subsystem);
 
         const charLimit = Math.floor((p.width - 20) / 8.5);
@@ -3287,7 +3290,15 @@ function renderGraph(project, cpm){
         metaText.textContent = `${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}`;
         node.appendChild(metaText);
 
-        node.addEventListener('click', ()=>{ toggleSelect(t.id); renderGraph(project,cpm); });
+        node.addEventListener('click', (ev)=>{
+          if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+            toggleSelect(t.id);
+          }else{
+            if(selectedTaskId===t.id) clearSelection();
+            else selectOnly(t.id);
+          }
+          refresh();
+        });
         g.appendChild(node);
     }
 }
@@ -3309,12 +3320,13 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
-    bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
+    bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-task-id',t.id);
     bar.setAttribute('role','listitem');
     const durVal = parseDurationStrict(t.duration).days || 0;
     const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack ' + t.slack + ' days'}`;
     bar.setAttribute('aria-label', labelText);
-    if(SEL.has(t.id)) bar.classList.add('selected');
+    bar.setAttribute('aria-selected', SEL.has(t.id)?'true':'false');
+    if(SEL.has(t.id)) bar.classList.add('is-selected');
     const col=colorFor(t.subsystem);
     const isMilestone=(parseDurationStrict(t.duration).days||0)===0;
     if(isMilestone){
@@ -3401,15 +3413,23 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); renderGantt(project,cpm); } });
-    bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+    bar.addEventListener('click', (ev)=>{
+      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+        toggleSelect(t.id);
+      }else{
+        if(selectedTaskId===t.id) clearSelection();
+        else selectOnly(t.id);
+      }
+      refresh();
+    });
+    bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); refresh(); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
 
   // drag
-  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
-  svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
+  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-task-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
+  svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-task-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
   };
-  svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
+  svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-task-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
     if(drag.side==='right'){ SM.updateTask(drag.id,{duration:durNew}, {name: 'Update Duration'}); showToast('Duration updated'); }
     else if(drag.side==='left' || (drag.side==='move' && ev.shiftKey)){
       const sc={type:'SNET', day:esNew}; SM.updateTask(drag.id,{startConstraint:sc, duration:durNew}, {name: 'Set SNET Constraint'}); showToast('Set SNET constraint');
@@ -3444,6 +3464,43 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     summaryContainer.appendChild(list);
   }
+}
+
+function renderContext(project, cpm){
+  const side=$('#side');
+  if(!side) return;
+  side.innerHTML='<h3>Context</h3>';
+  if(!selectedTaskId){
+    side.innerHTML+='<p>Select a task to view details.</p>';
+    return;
+  }
+  const t=cpm.tasks.find(x=>x.id===selectedTaskId);
+  if(!t){
+    side.innerHTML+='<p>Select a task to view details.</p>';
+    return;
+  }
+  const deps=(t.deps||[]).map(tok=>{ const d=parseDepToken(tok); return d?d.pred:''; }).filter(Boolean).join(', ')||'—';
+  const active=t.active!==false;
+  side.innerHTML+=`<dl>
+    <dt>Name</dt><dd>${esc(t.name||'')}</dd>
+    <dt>ID</dt><dd>${esc(t.id)}</dd>
+    <dt>Duration</dt><dd>${esc(String(t.duration))}</dd>
+    <dt>Dependencies</dt><dd>${esc(deps)}</dd>
+    <dt>Slack</dt><dd>${t.slack!=null?t.slack:'—'}d</dd>
+    <dt>ES/EF</dt><dd>${t.es}d / ${t.ef}d</dd>
+    <dt>LS/LF</dt><dd>${t.ls}d / ${t.lf}d</dd>
+    <dt>Critical</dt><dd>${t.critical?'Yes':'No'}</dd>
+  </dl>
+  <div class="actions" role="group" aria-label="Task actions">
+    <button class="btn small" id="ctxEdit" aria-label="Edit selected task">Edit</button>
+    <button class="btn small" id="ctxDup" aria-label="Duplicate selected task">Duplicate</button>
+    <button class="btn small" id="ctxToggle" aria-label="Toggle task active state">${active?'Deactivate':'Activate'}</button>
+    <button class="btn small" id="ctxDelete" aria-label="Delete selected task">Delete</button>
+  </div>`;
+  $('#ctxEdit').onclick=()=>{ selectOnly(t.id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); };
+  $('#ctxDup').onclick=()=>{ selectOnly(t.id); duplicateSelected(); };
+  $('#ctxToggle').onclick=()=>{ const s=SM.get(); const task=s.tasks.find(x=>x.id===t.id); if(task){ task.active=task.active===false?true:false; SM.replaceTasks(s.tasks,{name: task.active?'Activate Task':'Deactivate Task'}); } refresh(); };
+  $('#ctxDelete').onclick=()=>{ selectOnly(t.id); deleteSelected(); };
 }
 
 function calcEarliestESFor(project, id, dur){
@@ -3582,13 +3639,15 @@ function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header
 // ------------------------------------------------------------------------------------
 const SEL=new Set();
 let LAST_SEL=null;
+let selectedTaskId=null;
 function toggleSelect(id){
   if(SEL.has(id)){
     SEL.delete(id);
-    if(LAST_SEL===id) LAST_SEL=null;
+    if(LAST_SEL===id){ LAST_SEL=null; selectedTaskId=null; }
   }else{
     SEL.add(id);
     LAST_SEL=id;
+    selectedTaskId=id;
   }
   updateSelBadge();
 }
@@ -3596,6 +3655,7 @@ function selectOnly(id){
   SEL.clear();
   SEL.add(id);
   LAST_SEL=id;
+  selectedTaskId=id;
   updateSelBadge();
 }
 function moveSelection(dir){
@@ -3661,11 +3721,12 @@ function duplicateSelected(){
   SEL.clear();
   clones.forEach(c=>SEL.add(c.id));
   LAST_SEL=clones.length?clones[clones.length-1].id:null;
+  selectedTaskId=LAST_SEL;
   updateSelBadge();
   showToast(`Duplicated ${clones.length} task${clones.length>1?'s':''}`);
   refresh();
 }
-function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelBadge(); }
+function clearSelection(){ SEL.clear(); LAST_SEL=null; selectedTaskId=null; updateSelBadge(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
   for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
     const dur=parseDurationStrict(t.duration).days||0;
@@ -3706,7 +3767,7 @@ function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.fo
 function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{4}-\d{2}-\d{2}$/); if(m){ out.push(t); } }
   return out; }
 
-function refresh(){ const s=SM.get(); const cpm=computeCPM(s); renderGantt(s, cpm); renderGraph(s, cpm); renderFocus(s, cpm); renderIssues(s, cpm); $('#boot').style.display='none'; $('#appRoot').style.display='grid'; if($('.tab.active').dataset.tab==='compare') buildCompare(); }
+function refresh(){ const s=SM.get(); const cpm=computeCPM(s); renderGantt(s, cpm); renderGraph(s, cpm); renderFocus(s, cpm); renderIssues(s, cpm); renderContext(s, cpm); $('#boot').style.display='none'; $('#appRoot').style.display='grid'; if($('.tab.active').dataset.tab==='compare') buildCompare(); }
 
 function newProject(){ SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'}); $('#startDate').value=todayStr(); $('#calendarMode').value='workdays'; $('#holidayInput').value=''; clearSelection(); refresh(); }
 
@@ -3856,10 +3917,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
         e.preventDefault(); deleteSelected();
       }else if((e.ctrlKey||e.metaKey) && k.toLowerCase()==='d'){
         e.preventDefault(); duplicateSelected();
-      }else if(k==='ArrowDown' || k==='ArrowRight'){
-        e.preventDefault(); moveSelection(1);
-      }else if(k==='ArrowUp' || k==='ArrowLeft'){
-        e.preventDefault(); moveSelection(-1);
       } else if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
         const helpModal = document.getElementById('help-modal');
@@ -3883,6 +3940,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
     ZTL=makeZoomPan($('#gantt')); const ZGR=makeZoomPan($('#graphSvg'));
     $('#zoomInTL').onclick=ZTL.zoomIn; $('#zoomOutTL').onclick=ZTL.zoomOut; $('#zoomResetTL').onclick=ZTL.fit;
     $('#zoomInGR').onclick=ZGR.zoomIn; $('#zoomOutGR').onclick=ZGR.zoomOut; $('#zoomResetGR').onclick=ZGR.fit;
+
+    $('#gantt').addEventListener('keydown', (e)=>{
+      if(e.key==='ArrowDown'){ e.preventDefault(); moveSelection(1); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); moveSelection(-1); }
+      else if(e.key==='Enter'){ e.preventDefault(); $('#side').focus(); }
+    });
 
     // Templates
     $('#btnInsertTpl').onclick=()=> {

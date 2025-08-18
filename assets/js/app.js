@@ -22,9 +22,11 @@ let graphInitialized = false;
 // A collection of small, reusable utility functions.
 // ---------------------------------------------------------------------
 const $ = (q,el=document)=>el.querySelector(q); const $$=(q,el=document)=>Array.from(el.querySelectorAll(q));
-const todayStr = ()=> new Date().toISOString().slice(0,10);
-function parseDate(s){ return new Date(s+'T00:00:00'); }
-function fmtDate(d){ return d.toISOString().slice(0,10); }
+const todayStr = ()=> { const d = new Date(); return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); };
+function parseDate(s){ const [d,m,y] = s.split('-'); return new Date(`${y}-${m}-${d}T00:00:00`); }
+function fmtDate(d){ return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); }
+function yyyymmdd_to_ddmmyyyy(s) { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}-${m}-${y}`; }
+function ddmmyyyy_to_yyyymmdd(s) { if (!s) return ''; const [d,m,y] = s.split('-'); return `${y}-${m}-${d}`; }
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }
@@ -96,7 +98,7 @@ function validateProject(project) {
   }
 
   // --- VALIDATION LOGIC ---
-  if (!project.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(project.startDate)) {
+  if (!project.startDate || !/^\d{2}-\d{2}-\d{4}$/.test(project.startDate)) {
     errors.push({ sev: 'error', msg: 'Project is missing a valid "startDate".' });
     project.startDate = todayStr(); // Attempt to fix
     warnings.push({ sev: 'warn', msg: 'Project "startDate" was missing or invalid. It has been reset to today.' });
@@ -1459,7 +1461,7 @@ function insertTemplate(which){ const lib = templateLib(which); const s=SM.get()
 // ------------------------------------------------------------------------------------
 function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.forEach(name=>{ const cls=slug(name).replace('_',''); const div=document.createElement('label'); div.className='tag'; div.innerHTML=`<input type="checkbox" checked value="${name}"><span class=\"dot ${cls}\" style="background:${colorFor(name)}"></span> ${name}`; box.appendChild(div); }); $('#btnSubAll').onclick=()=> $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true);
   $('#btnSubNone').onclick=()=> $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=false); $$('#subsysFilters input[type="checkbox"]').forEach(c=> c.onchange=refresh); }
-function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{4}-\d{2}-\d{2}$/); if(m){ out.push(t); } }
+function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{2}-\d{2}-\d{4}$/); if(m){ out.push(t); } }
   return out; }
 
 function triggerCPM(project) {
@@ -1558,8 +1560,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
         var startDateInput = document.getElementById('startDate');
         if (startDateInput) {
           startDateInput.setAttribute('type', 'text');
-          startDateInput.setAttribute('placeholder', 'YYYY-MM-DD');
-          startDateInput.setAttribute('pattern', '\\d{4}-\\d{2}-\\d{2}');
+          startDateInput.setAttribute('placeholder', 'DD-MM-YYYY');
+          startDateInput.setAttribute('pattern', '\\d{2}-\\d{2}-\\d{4}');
         }
       }
     })();
@@ -1586,7 +1588,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // Sync UI to loaded state, which also handles empty/missing start date
     const loadedState = SM.get();
-    $('#startDate').value = loadedState.startDate || todayStr();
+    $('#startDate').value = ddmmyyyy_to_yyyymmdd(loadedState.startDate || todayStr());
     $('#calendarMode').value = loadedState.calendar || 'workdays';
     $('#holidayInput').value = (loadedState.holidays || []).join(', ');
 
@@ -1625,12 +1627,15 @@ window.addEventListener('DOMContentLoaded', ()=>{
     const startDateError = $('#startDateError');
 
     function handleStartDateChange() {
-      const value = startDateInput.value;
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      let value = startDateInput.value;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        value = yyyymmdd_to_ddmmyyyy(value);
+      }
+      const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
 
       const d = parseDate(value);
-      if (!dateRegex.test(value) || d.toISOString().slice(0,10) !== value) {
-        startDateError.textContent = 'Invalid date. Please use YYYY-MM-DD format for a valid date.';
+      if (!dateRegex.test(value) || fmtDate(d) !== value) {
+        startDateError.textContent = 'Invalid date. Please use DD-MM-YYYY format for a valid date.';
         startDateError.style.display = 'block';
         startDateInput.classList.add('error');
         return;

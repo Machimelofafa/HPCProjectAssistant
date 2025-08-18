@@ -183,7 +183,7 @@
             </label>
             <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp startDateError">
             <div id="startDateError" class="form-help error" style="display: none; margin-top: var(--space-1);"></div>
-            <div id="startDateHelp" class="form-help">Use YYYY-MM-DD format. Arrow keys change day, Shift+arrow for week, Alt+arrow for month.</div>
+            <div id="startDateHelp" class="form-help">Use DD-MM-YYYY format. Arrow keys change day, Shift+arrow for week, Alt+arrow for month.</div>
           </div>
           <div class="row">
             <label for="calendarMode" class="label">
@@ -199,10 +199,10 @@
           <div class="row" style="align-items:flex-start">
             <label for="holidayInput" class="label full-width">
               <span class="label-icon" aria-hidden="true">🎉</span>
-              Holidays (YYYY‑MM‑DD)
+              Holidays (DD‑MM‑YYYY)
             </label>
-            <textarea id="holidayInput" placeholder="2025-01-01, 2025-05-01, 2025-12-25" class="form-input" aria-describedby="holidayInputHelp"></textarea>
-            <div id="holidayInputHelp" class="sr-only">Enter holiday dates in YYYY-MM-DD format, separated by commas</div>
+            <textarea id="holidayInput" placeholder="01-01-2025, 01-05-2025, 25-12-2025" class="form-input" aria-describedby="holidayInputHelp"></textarea>
+            <div id="holidayInputHelp" class="sr-only">Enter holiday dates in DD-MM-YYYY format, separated by commas</div>
           </div>
           <div class="row">
             <label for="slackThreshold" class="label">

@@ -795,22 +795,49 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{
-      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-        toggleSelect(t.id);
-      } else {
-        selectOnly(t.id);
-      }
-      refresh();
-    });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
 
   // drag
-  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
-  svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
+  let drag=null;
+  let wasDragged = false;
+  svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY, time:Date.now()}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); wasDragged = false; };
+  svg.onpointermove=(ev)=>{
+    if(!drag) return;
+    const dx = Math.abs(ev.clientX - drag.px0);
+    const dy = Math.abs(ev.clientY - drag.py0);
+    if(dx > 5 || dy > 5) wasDragged = true;
+
+    const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+(ev.clientX-drag.px0)); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+(ev.clientX-drag.px0)); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
   };
-  svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
+  svg.onpointerup=(ev)=>{
+    if(!drag) return;
+    const {id, side} = drag;
+    const duration = Date.now() - drag.time;
+
+    if (!wasDragged && duration < 300) {
+        if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+            toggleSelect(id);
+        } else {
+            selectOnly(id);
+        }
+        refresh();
+    }
+
+    svg.releasePointerCapture(ev.pointerId);
+    hideHint();
+    const gg=$(`.bar[data-id="${id}"]`, svg);
+    if (!gg) return;
+
+    const rect=gg.querySelector('rect');
+    const x=+rect.getAttribute('x');
+    const w=+rect.getAttribute('width');
+    const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+    const esNew = scaleInv(x);
+    const efNew = scaleInv(x+w);
+    const durNew = Math.max(1, efNew-esNew);
+    const cur=cpm.tasks.find(t=>t.id===id);
+
     if(drag.side==='right'){ SM.updateTask(drag.id,{duration:durNew}, {name: 'Update Duration'}); showToast('Duration updated'); }
     else if(drag.side==='left' || (drag.side==='move' && ev.shiftKey)){
       const sc={type:'SNET', day:esNew}; SM.updateTask(drag.id,{startConstraint:sc, duration:durNew}, {name: 'Set SNET Constraint'}); showToast('Set SNET constraint');

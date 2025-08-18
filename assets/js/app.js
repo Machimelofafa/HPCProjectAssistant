@@ -22,9 +22,17 @@ let graphInitialized = false;
 // A collection of small, reusable utility functions.
 // ---------------------------------------------------------------------
 const $ = (q,el=document)=>el.querySelector(q); const $$=(q,el=document)=>Array.from(el.querySelectorAll(q));
-const todayStr = ()=> new Date().toISOString().slice(0,10);
-function parseDate(s){ return new Date(s+'T00:00:00'); }
-function fmtDate(d){ return d.toISOString().slice(0,10); }
+function fmtDate(d){
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+const todayStr = () => fmtDate(new Date());
+function parseDate(s){
+  const [day, month, year] = s.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }
@@ -96,7 +104,7 @@ function validateProject(project) {
   }
 
   // --- VALIDATION LOGIC ---
-  if (!project.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(project.startDate)) {
+  if (!project.startDate || !/^\d{2}-\d{2}-\d{4}$/.test(project.startDate)) {
     errors.push({ sev: 'error', msg: 'Project is missing a valid "startDate".' });
     project.startDate = todayStr(); // Attempt to fix
     warnings.push({ sev: 'warn', msg: 'Project "startDate" was missing or invalid. It has been reset to today.' });
@@ -234,7 +242,7 @@ const SM=(function(){
   function redoOp(){ if(!canRedo()) return; const record=redo.pop(); const cur={state: get(), name: record.name}; undo.push(cur); _apply(record.state); updateUndoUI(); }
   function listBaselines(){ return baselines.map(b=>({id:b.id,name:b.name,createdAt:b.createdAt})); }
   function getBaseline(id){ const b=baselines.find(x=>x.id===id); return b? clone(b.projectSnapshot): null; }
-  function addBaseline(name){ const id=uid('b'); const projectSnapshot=get(); baselines.push({id,name,createdAt:new Date().toISOString(),projectSnapshot}); if(baselines.length>5) baselines=baselines.slice(-5); saveBaselines(); return id; }
+  function addBaseline(name){ const id=uid('b'); const projectSnapshot=get(); baselines.push({id,name,createdAt:fmtDate(new Date()),projectSnapshot}); if(baselines.length>5) baselines=baselines.slice(-5); saveBaselines(); return id; }
   function removeBaseline(id){ baselines=baselines.filter(b=>b.id!==id); saveBaselines(); }
   return {get,set,setProjectProps,addTasks,replaceTasks,updateTask,onChange,setCPMWarnings,undo:undoOp,redo:redoOp,canUndo,canRedo,addBaseline,removeBaseline,getBaseline,listBaselines};
 })();
@@ -1459,7 +1467,7 @@ function insertTemplate(which){ const lib = templateLib(which); const s=SM.get()
 // ------------------------------------------------------------------------------------
 function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.forEach(name=>{ const cls=slug(name).replace('_',''); const div=document.createElement('label'); div.className='tag'; div.innerHTML=`<input type="checkbox" checked value="${name}"><span class=\"dot ${cls}\" style="background:${colorFor(name)}"></span> ${name}`; box.appendChild(div); }); $('#btnSubAll').onclick=()=> $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true);
   $('#btnSubNone').onclick=()=> $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=false); $$('#subsysFilters input[type="checkbox"]').forEach(c=> c.onchange=refresh); }
-function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{4}-\d{2}-\d{2}$/); if(m){ out.push(t); } }
+function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{2}-\d{2}-\d{4}$/); if(m){ out.push(t); } }
   return out; }
 
 function triggerCPM(project) {
@@ -1547,23 +1555,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
         console.error("Web Workers are not supported in this browser.");
         // Fallback or error message could be implemented here.
     }
-
-    // Fallback for browsers that do not support input[type="date"]
-    (function() {
-      var input = document.createElement('input');
-      input.setAttribute('type', 'date');
-      var notADateValue = 'not-a-date';
-      input.setAttribute('value', notADateValue);
-      if (input.value === notADateValue) {
-        var startDateInput = document.getElementById('startDate');
-        if (startDateInput) {
-          startDateInput.setAttribute('type', 'text');
-          startDateInput.setAttribute('placeholder', 'YYYY-MM-DD');
-          startDateInput.setAttribute('pattern', '\\d{4}-\\d{2}-\\d{2}');
-        }
-      }
-    })();
-
     setupLegend();
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
@@ -1626,11 +1617,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     function handleStartDateChange() {
       const value = startDateInput.value;
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
 
       const d = parseDate(value);
-      if (!dateRegex.test(value) || d.toISOString().slice(0,10) !== value) {
-        startDateError.textContent = 'Invalid date. Please use YYYY-MM-DD format for a valid date.';
+      if (!dateRegex.test(value) || fmtDate(d) !== value) {
+        startDateError.textContent = 'Invalid date. Please use DD-MM-YYYY format for a valid date.';
         startDateError.style.display = 'block';
         startDateInput.classList.add('error');
         return;

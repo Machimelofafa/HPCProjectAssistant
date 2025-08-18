@@ -4,8 +4,16 @@
 // This is a self-contained script that will run in a separate thread.
 
 // --- UTILITIES (copied from main script) ---
-function parseDate(s){ return new Date(s+'T00:00:00'); }
-function fmtDate(d){ return d.toISOString().slice(0,10); }
+function fmtDate(d){
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+function parseDate(s){
+  const [day, month, year] = s.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }

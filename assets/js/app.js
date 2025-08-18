@@ -682,8 +682,11 @@ function InteractionManager(svg, options = {}) {
 // Logic for filtering and grouping tasks in the views.
 // ------------------------------------------------------------------------------
 const SUBS=['power/VRM','PCIe','BMC','BIOS','FW','Mech','Thermal','System'];
+let filterCriticalOnly = false;
 function getActiveSubsystems(){ return $$('#subsysFilters input[type="checkbox"]').filter(x=>x.checked).map(x=>x.value); }
-function matchesFilters(t){ const txt=($('#filterText').value||'').toLowerCase(); if(txt){ const inName=(t.name||'').toLowerCase().includes(txt); const inPhase=(t.phase||'').toLowerCase().includes(txt); if(!inName && !inPhase) return false; }
+function matchesFilters(t){
+  if (filterCriticalOnly && !t.critical) return false;
+  const txt=($('#filterText').value||'').toLowerCase(); if(txt){ const inName=(t.name||'').toLowerCase().includes(txt); const inPhase=(t.phase||'').toLowerCase().includes(txt); if(!inName && !inPhase) return false; }
   const act=getActiveSubsystems(); if(act.length && !act.includes(t.subsystem||'System')) return false; return true; }
 function groupKey(t){ const g=$('#groupBy').value||'none'; if(g==='phase') return t.phase||'(no phase)'; if(g==='subsystem') return t.subsystem||'System'; return null; }
 
@@ -1793,8 +1796,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), lastCPMResult); };
     $('#filterText').oninput = ()=>{ refresh(); };
     $('#groupBy').onchange = refresh;
-    $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
+    $('#btnFilterClear').onclick=()=>{ filterCriticalOnly = false; $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
     $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
+    $('#kpi-critical-tasks-card').onclick=()=>{
+      filterCriticalOnly = true;
+      $$('.tab').forEach(x=>x.classList.remove('active'));
+      $('[data-tab="timeline"]').classList.add('active');
+      $$('.view').forEach(v=>v.classList.remove('active'));
+      $('#timeline').classList.add('active');
+      refresh();
+      showToast('Filtered to show critical tasks only.');
+    };
     $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
 
     // bulk
@@ -2306,8 +2318,8 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
   'use strict';
 
   const doc = document.documentElement;
-  const themeToggle = document.getElementById('toggle-theme');
-  const densityToggle = document.getElementById('toggle-density');
+  const themeToggle = document.getElementById('action-toggle-theme');
+  const densityToggle = document.getElementById('action-toggle-density');
 
   // 1. Restore preferences on load
   const savedTheme = localStorage.getItem('hpc-theme');

@@ -490,7 +490,7 @@ function InteractionManager(svg, options = {}) {
     }, { passive: false });
 
     svg.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || e.target !== svg) return;
         dragging = true;
         p0 = { x: e.clientX, y: e.clientY, vb0: [...vb] };
         svg.setPointerCapture(e.pointerId);
@@ -507,6 +507,7 @@ function InteractionManager(svg, options = {}) {
     });
 
     svg.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
         dragging = false;
         svg.releasePointerCapture(e.pointerId);
         svg.style.cursor = 'grab';
@@ -807,26 +808,110 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     g.appendChild(bar); y+=rowH; });
 
   // drag
-  let drag=null; svg.onpointerdown=(ev)=>{ const tgt=ev.target; const gg=tgt.closest('.bar'); if(!gg || gg.dataset.ms) return; const id=gg.getAttribute('data-id'); const rect=gg.querySelector('rect'); const x0=+rect.getAttribute('x'); const w0=+rect.getAttribute('width'); const side = tgt.classList.contains('handle')? tgt.getAttribute('data-side') : 'move'; drag={id, side, x0, w0, px0:ev.clientX, py0:ev.clientY}; gg.classList.add('moved'); svg.setPointerCapture(ev.pointerId); };
-  svg.onpointermove=(ev)=>{ if(!drag) return; const dx=ev.clientX-drag.px0; const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1]; if(drag.side==='right'){ const newW=Math.max(4, drag.w0+dx); rect.setAttribute('width', newW); const dur = scaleInv(+rect.getAttribute('x')+newW) - (cpm.tasks.find(t=>t.id===drag.id).es||0); labelNext.textContent = Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid'); } else { const newX=Math.max(P, drag.x0+dx); rect.setAttribute('x', newX); const esCand = scaleInv(newX); const cur=cpm.tasks.find(t=>t.id===drag.id); const dur=cur.ef - cur.es; const allowed = $('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0; const ok = (esCand>=allowed) || ev.shiftKey; labelNext.textContent = (cur.duration)+'d'; if(ok){ gg.classList.add('valid'); gg.classList.remove('invalid'); hideHint(); } else { gg.classList.add('invalid'); gg.classList.remove('valid'); showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`); } }
+  let drag = null;
+  svg.onpointerdown = (ev) => {
+    const tgt = ev.target;
+    const gg = tgt.closest('.bar');
+    if (!gg || gg.dataset.ms) return;
+    const id = gg.getAttribute('data-id');
+    const rect = gg.querySelector('rect');
+    const x0 = +rect.getAttribute('x');
+    const w0 = +rect.getAttribute('width');
+    const side = tgt.classList.contains('handle') ? tgt.getAttribute('data-side') : 'move';
+    drag = { id, side, x0, w0, px0: ev.clientX, py0: ev.clientY, moved: false };
+    gg.classList.add('moved');
   };
-  svg.onpointerup=(ev)=>{ if(!drag) return; svg.releasePointerCapture(ev.pointerId); hideHint(); const gg=$(`.bar[data-id="${drag.id}"]`, svg); const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width'); const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20)); const esNew = scaleInv(x); const efNew = scaleInv(x+w); const durNew = Math.max(1, efNew-esNew); const cur=cpm.tasks.find(t=>t.id===drag.id);
-    if(drag.side==='right'){ SM.updateTask(drag.id,{duration:durNew}, {name: 'Update Duration'}); showToast('Duration updated'); }
-    else if(drag.side==='left' || (drag.side==='move' && ev.shiftKey)){
-      const sc={type:'SNET', day:esNew}; SM.updateTask(drag.id,{startConstraint:sc, duration:durNew}, {name: 'Set SNET Constraint'}); showToast('Set SNET constraint');
+  svg.onpointermove = (ev) => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.px0;
+    const dy = ev.clientY - drag.py0;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+      drag.moved = true;
+      svg.setPointerCapture(ev.pointerId);
+    }
+    const gg = $(`.bar[data-id="${drag.id}"]`, svg);
+    const rect = gg.querySelector('rect');
+    const labelNext = gg.querySelectorAll('text')[1];
+    if (drag.side === 'right') {
+      const newW = Math.max(4, drag.w0 + dx);
+      rect.setAttribute('width', newW);
+      const dur = scaleInv(+rect.getAttribute('x') + newW) - (cpm.tasks.find(t => t.id === drag.id).es || 0);
+      labelNext.textContent = Math.max(1, dur) + 'd';
+      hideHint();
+      gg.classList.remove('invalid', 'valid');
     } else {
-      const allowed=$('#toggleConAware')? ($('#toggleConAware').checked? calcEarliestESFor(SM.get(), drag.id, cur.ef-cur.es) : 0) : 0; const autoLag=$('#toggleAutoLag')? $('#toggleAutoLag').checked : false;
-      if(esNew<allowed && !autoLag){ const sc={type:'SNET', day:allowed}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true, name: 'Snap to Earliest'}); showToast(`Snapped to earliest ${allowed}d`);
-      } else if(esNew!== (cur.es||0)){
-        const delta = esNew - (cur.es||0);
-        if(autoLag){ const s=SM.get(); const t=s.tasks.find(x=>x.id===drag.id); t.deps=adjustIncomingLags(t, delta); SM.replaceTasks(s.tasks,{record:true, name: `Adjust Lags by ${delta}d`}); showToast(`Adjusted predecessor lags by ${delta}d`); }
-        else { const sc={type:'SNET', day:Math.max(0, esNew)}; SM.updateTask(drag.id,{startConstraint:sc}, {record:true, name: 'Add SNET Constraint'}); showToast('Added SNET to honor move'); }
+      const newX = Math.max(P, drag.x0 + dx);
+      rect.setAttribute('x', newX);
+      const esCand = scaleInv(newX);
+      const cur = cpm.tasks.find(t => t.id === drag.id);
+      const dur = cur.ef - cur.es;
+      const allowed = $('#toggleConAware') ? ($('#toggleConAware').checked ? calcEarliestESFor(SM.get(), drag.id, dur) : 0) : 0;
+      const ok = (esCand >= allowed) || ev.shiftKey;
+      labelNext.textContent = (cur.duration) + 'd';
+      if (ok) {
+        gg.classList.add('valid');
+        gg.classList.remove('invalid');
+        hideHint();
+      } else {
+        gg.classList.add('invalid');
+        gg.classList.remove('valid');
+        showHint(ev.clientX, ev.clientY, `Blocked: earliest ${allowed}d`);
       }
     }
-    gg.classList.remove('invalid','valid'); drag=null; setTimeout(()=>{ refresh(); }, 0);
   };
-
-  // Accessible summary
+  svg.onpointerup = (ev) => {
+    if (!drag) return;
+    if (svg.hasPointerCapture && svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
+    hideHint();
+    const gg = $(`.bar[data-id="${drag.id}"]`, svg);
+    if (!drag.moved) {
+      gg.classList.remove('moved', 'invalid', 'valid');
+      drag = null;
+      return;
+    }
+    const rect = gg.querySelector('rect');
+    const x = +rect.getAttribute('x');
+    const w = +rect.getAttribute('width');
+    const scaleInv = (px) => Math.round((px - P) * finish / (W - P - 20));
+    const esNew = scaleInv(x);
+    const efNew = scaleInv(x + w);
+    const durNew = Math.max(1, efNew - esNew);
+    const cur = cpm.tasks.find(t => t.id === drag.id);
+    if (drag.side === 'right') {
+      SM.updateTask(drag.id, { duration: durNew }, { name: 'Update Duration' });
+      showToast('Duration updated');
+    } else if (drag.side === 'left' || (drag.side === 'move' && ev.shiftKey)) {
+      const sc = { type: 'SNET', day: esNew };
+      SM.updateTask(drag.id, { startConstraint: sc, duration: durNew }, { name: 'Set SNET Constraint' });
+      showToast('Set SNET constraint');
+    } else {
+      const allowed = $('#toggleConAware') ? ($('#toggleConAware').checked ? calcEarliestESFor(SM.get(), drag.id, cur.ef - cur.es) : 0) : 0;
+      const autoLag = $('#toggleAutoLag') ? $('#toggleAutoLag').checked : false;
+      if (esNew < allowed && !autoLag) {
+        const sc = { type: 'SNET', day: allowed };
+        SM.updateTask(drag.id, { startConstraint: sc }, { record: true, name: 'Snap to Earliest' });
+        showToast(`Snapped to earliest ${allowed}d`);
+      } else if (esNew !== (cur.es || 0)) {
+        const delta = esNew - (cur.es || 0);
+        if (autoLag) {
+          const s = SM.get();
+          const t = s.tasks.find(x => x.id === drag.id);
+          t.deps = adjustIncomingLags(t, delta);
+          SM.replaceTasks(s.tasks, { record: true, name: `Adjust Lags by ${delta}d` });
+          showToast(`Adjusted predecessor lags by ${delta}d`);
+        } else {
+          const sc = { type: 'SNET', day: Math.max(0, esNew) };
+          SM.updateTask(drag.id, { startConstraint: sc }, { record: true, name: 'Add SNET Constraint' });
+          showToast('Added SNET to honor move');
+        }
+      }
+    }
+    gg.classList.remove('invalid', 'valid');
+    drag = null;
+    setTimeout(() => { refresh(); }, 0);
+  };
+// Accessible summary
   const summaryContainer = $('#gantt-accessible-summary');
   if (summaryContainer) {
     summaryContainer.innerHTML = '';

@@ -33,7 +33,6 @@ function uid(prefix='t'){ return prefix+'_'+Math.random().toString(36).slice(2,8
 function slug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function deepFreeze(o){ if(o&&typeof o==='object'&&!Object.isFrozen(o)){ Object.freeze(o); for(const k of Object.keys(o)){ deepFreeze(o[k]); } } return o; }
-function debounce(fn, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn.apply(this, args), delay); }; }
 function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._h); showToast._h=setTimeout(()=>{ t.style.display='none'; }, 2600); }
 function showHint(x,y,msg){ const h=$('#hint'); h.textContent=msg; h.style.left=(x+12)+'px'; h.style.top=(y+12)+'px'; h.style.display='block'; }
 function hideHint(){ $('#hint').style.display='none'; }
@@ -1952,6 +1951,8 @@ function templateLib(which){
 }
 
 })();
+
+function debounce(fn, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn.apply(this, args), delay); }; }
 /* === TIMELINE VISIBILITY ENHANCEMENTS (single-file) === */
 
 /** Measure text length in the SVG coordinate space */

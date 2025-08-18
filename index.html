@@ -10,8 +10,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>HPC/AI Project Planner — offline web app (Enhanced UI/UX)</title>
-<script src="src/theme-init.js"></script>
-<link rel="stylesheet" href="src/styles/main.css">
+<script src="assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="assets/css/style.css">
 
 </head>
 <body>
@@ -46,85 +46,6 @@
     </defs>
   </svg>
   <a href="#main-content" class="skip-link">Skip to main content</a>
-  <header style="display:none">
-    <div class="header-left">
-      <h1>
-        <span class="title-icon" aria-hidden="true">📊</span>
-        HPC/AI Project Planner
-        <small class="subtitle">— offline • single file</small>
-      </h1>
-    </div>
-    
-    <div class="header-center">
-      <div class="toolbar-group">
-        <h2 class="toolbar-heading">File</h2>
-        <div class="button-group">
-          <button class="btn" id="btnNew" aria-label="Create new project" title="Create new project">
-            <span class="btn-icon" aria-hidden="true">✨</span>
-            <span class="sr-only">New</span>
-          </button>
-          <button class="btn" id="btnLoad" aria-label="Open existing project file" title="Open existing project file">
-            <span class="btn-icon" aria-hidden="true">📁</span>
-            <span class="sr-only">Open…</span>
-          </button>
-          <button class="btn" id="btnSave" aria-label="Save current project" title="Save current project">
-            <span class="btn-icon" aria-hidden="true">💾</span>
-            <span class="sr-only">Save</span>
-          </button>
-          <button class="btn" id="btnExportJSON" aria-label="Export project data as JSON" title="Export project data as JSON">
-            <span class="btn-icon" aria-hidden="true">📤</span>
-            <span class="sr-only">Export JSON</span>
-          </button>
-          <button class="btn" id="btnExportCSV" aria-label="Export project data as CSV" title="Export project data as CSV">
-            <span class="btn-icon" aria-hidden="true">📊</span>
-            <span class="sr-only">Export CSV</span>
-          </button>
-        </div>
-      </div>
-      <div class="toolbar-group">
-        <h2 class="toolbar-heading">Tools</h2>
-        <div class="button-group">
-        <button class="btn" id="btnUndo" title="Undo (Ctrl+Z)" aria-label="Undo last action">
-            <span class="btn-icon" aria-hidden="true">↶</span>
-            <span class="sr-only">Undo</span>
-          </button>
-        <button class="btn" id="btnRedo" title="Redo (Ctrl+Y)" aria-label="Redo last undone action">
-            <span class="btn-icon" aria-hidden="true">↷</span>
-            <span class="sr-only">Redo</span>
-          </button>
-          <button class="btn accent" id="btnPrint" title="Print project or export as PDF" aria-label="Print project or export as PDF">
-            <span class="btn-icon" aria-hidden="true">🖨️</span>
-            <span class="sr-only">Print / PDF</span>
-          </button>
-          <button class="btn" id="btnGuide" aria-label="Show user guide and help" title="Show user guide and help">
-            <span class="btn-icon" aria-hidden="true">❓</span>
-            <span class="sr-only">Guide</span>
-          </button>
-          <button class="btn" id="btnToggleTheme" aria-label="Toggle dark mode" title="Toggle dark mode">
-            <span class="btn-icon" aria-hidden="true">🌙</span>
-            <span class="sr-only">Theme</span>
-          </button>
-          <button class="btn small" id="btnToggleSidebar" aria-pressed="false" aria-label="Toggle sidebar">☰</button>
-        </div>
-      </div>
-    </div>
-    
-    <div class="right">
-      <div class="status-indicators">
-        <span class="pill status-pill" id="cpmStatusBadge" style="display:none; background-color: var(--warn); color: white;"><span class="pill-icon" aria-hidden="true">⏳</span>Calculating…</span>
-        <span class="pill status-pill" id="selBadge" role="status" aria-live="polite">
-          <span class="pill-icon" aria-hidden="true">🎯</span>
-          0 selected
-        </span>
-        <span class="pill status-pill" id="scenarioBadge" role="status" aria-live="polite">
-          <span class="pill-icon" aria-hidden="true">⚙️</span>
-          Scenario: Working
-        </span>
-        <span class="pill status-pill" id="lastSavedBadge" role="status" aria-live="polite"></span>
-      </div>
-      
-    </div>
-  </header>
 
   <header id="new-header" class="app-header">
     <div class="header-left">
@@ -464,27 +385,6 @@
     <div data-action="adddep" role="menuitem" tabindex="0">Add dependency</div>
   </div>
 
-  <div class="modal" id="help-modal" role="dialog" aria-labelledby="helpModalTitle" aria-hidden="true" style="z-index: 1001;">
-    <div class="panel">
-      <header style="justify-content: space-between;">
-        <h1 id="helpModalTitle">Keyboard Shortcuts</h1>
-        <button class="btn ghost" aria-label="Close help dialog" onclick="document.getElementById('help-modal').style.display = 'none';">×</button>
-      </header>
-      <div class="p-lg" style="display: grid; grid-template-columns: auto 1fr; gap: var(--spacing-sm) var(--spacing-lg); align-items: center;">
-        <kbd>Ctrl/Cmd + Z</kbd> <span>Undo last action</span>
-        <kbd>Ctrl/Cmd + Y</kbd> <span>Redo last action</span>
-        <kbd>Delete</kbd> <span>Delete selected tasks</span>
-        <kbd>Ctrl/Cmd + D</kbd> <span>Duplicate selected tasks</span>
-        <kbd>↑</kbd> / <kbd>↓</kbd> <span>Navigate task list</span>
-        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
-        <kbd>Ctrl/Cmd + S</kbd> <span>Save Project</span>
-        <kbd>Ctrl/Cmd + O</kbd> <span>Open Project</span>
-        <kbd>Ctrl/Cmd + P</kbd> <span>Print / PDF</span>
-        <hr style="grid-column: 1 / -1; border-color: var(--line); margin: var(--spacing-sm) 0;">
-        <kbd>?</kbd> or <kbd>F1</kbd> <span>Show this help dialog</span>
-      </div>
-    </div>
-  </div>
 
   <div class="modal" id="new-help-modal" role="dialog" aria-labelledby="newHelpModalTitle" aria-hidden="true" style="z-index: 1001; display: none;">
     <div class="panel">
@@ -552,6 +452,6 @@
     This app needs JavaScript enabled.
   </div>
 </noscript>
-<script type="module" src="src/app.js"></script>
+<script defer src="assets/js/app.js"></script>
 </body>
 </html>

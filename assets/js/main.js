@@ -1435,28 +1435,30 @@ window.addEventListener('DOMContentLoaded', ()=>{
         try {
             cpmWorker = new Worker('assets/js/cpm-worker.js');
             cpmWorker.onmessage = function(e) {
-            if (e.data.type === 'result') {
+                if (e.data.type === 'result') {
+                    cpmRequestActive = false;
+                    const statusBadge = $('#cpmStatusBadge');
+                    if(statusBadge) statusBadge.style.display = 'none';
+
+                    lastCPMResult = e.data.cpm;
+                    SM.setCPMWarnings(lastCPMResult.warnings || []);
+
+                    const s = SM.get();
+                    renderAll(s, lastCPMResult);
+                }
+            };
+            cpmWorker.onerror = function(error) {
+                console.error("CPM Worker Error:", error);
                 cpmRequestActive = false;
                 const statusBadge = $('#cpmStatusBadge');
-                if(statusBadge) statusBadge.style.display = 'none';
-
-                lastCPMResult = e.data.cpm;
-                SM.setCPMWarnings(lastCPMResult.warnings || []);
-
-                const s = SM.get();
-                renderAll(s, lastCPMResult);
-            }
-        };
-
-        cpmWorker.onerror = function(error) {
-            console.error("CPM Worker Error:", error);
-            cpmRequestActive = false;
-            const statusBadge = $('#cpmStatusBadge');
-            if(statusBadge) {
-                statusBadge.textContent = 'Error!';
-                statusBadge.style.backgroundColor = 'var(--error)';
-            }
-        };
+                if(statusBadge) {
+                    statusBadge.textContent = 'Error!';
+                    statusBadge.style.backgroundColor = 'var(--error)';
+                }
+            };
+        } catch (e) {
+            console.error("Failed to create CPM Worker:", e);
+        }
     } else {
         console.error("Web Workers are not supported in this browser.");
         // Fallback or error message could be implemented here.

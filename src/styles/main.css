@@ -1,0 +1,12 @@
+@import url('./tokens.css');
+@import url('./base.css');
+@import url('./layout.css');
+@import url('./components.css');
+@import url('./gantt.css');
+@import url('./graph.css');
+
+/* Specific overrides or additions can go here if needed */
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

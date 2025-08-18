@@ -1,0 +1,110 @@
+#timeline {
+    position: relative;
+}
+
+#timeline svg {
+    width: 100%;
+    display: block;
+    background: var(--c-bg);
+    border-radius: var(--radius-md);
+}
+
+.gantt .bar {
+    stroke: var(--c-border);
+    transition: all 0.2s ease;
+}
+
+.gantt .bar rect {
+    fill: #e2e8f0;
+}
+
+html.dark-mode .gantt .bar rect {
+    fill: #4a5568;
+}
+
+.gantt .bar:hover {
+    stroke: var(--c-accent);
+    stroke-width: 2;
+}
+
+.gantt .bar.critical rect {
+    fill: #fca5a5;
+    /* light red base */
+    stroke: var(--c-crit);
+}
+
+.gantt .bar.critical rect.overlay {
+    fill: url(#critStripes);
+    color: var(--c-crit);
+}
+
+.gantt .bar.selected rect {
+    stroke: var(--c-accent);
+    stroke-width: 2;
+}
+
+.gantt .bar .label {
+    font-size: var(--fs-sm);
+    fill: var(--c-text);
+    font-weight: 500;
+}
+
+.gantt .bar .label[text-anchor="end"] {
+    font-size: 15px;
+    fill: var(--c-text);
+    font-weight: 600;
+}
+
+.gantt .handle {
+    fill: #94a3b8;
+    cursor: ew-resize;
+}
+
+.gantt .milestone {
+    stroke-width: 2;
+    fill: var(--c-panel);
+    stroke: var(--c-border);
+    stroke-dasharray: 3 3;
+}
+
+.gantt .milestone.critical {
+    fill: #fed7d7;
+    stroke: var(--c-crit);
+}
+
+.gantt .bar .progress {
+    opacity: 0.85;
+}
+
+.axis {
+    stroke: var(--c-border);
+}
+
+.axis text {
+    fill: var(--c-text-muted);
+    font-size: 12px;
+}
+
+.floating-toolbar {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+    z-index: 10;
+    background: var(--c-panel);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    gap: var(--space-2);
+}
+
+.groupHeader {
+    fill: var(--c-panel);
+    stroke: var(--c-border);
+}
+
+.groupLabel {
+    font-size: 13px;
+    fill: var(--c-text);
+    font-weight: 600;
+}

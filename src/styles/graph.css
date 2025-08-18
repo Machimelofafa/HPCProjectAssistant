@@ -1,0 +1,58 @@
+#graph svg {
+    width: 100%;
+    display: block;
+    background: var(--c-bg);
+    border-radius: var(--radius-md);
+}
+
+.node {
+    cursor: pointer;
+}
+
+.node rect {
+    fill: var(--c-panel);
+    stroke: var(--c-border);
+    rx: var(--radius-md);
+    transition: all 0.2s ease;
+}
+
+.node:hover rect {
+    stroke: var(--c-accent);
+    stroke-width: 2px;
+}
+
+.node.critical rect {
+    stroke: var(--c-crit);
+    stroke-width: 2;
+    fill: url(#stripes);
+}
+
+.node.selected rect {
+    stroke: var(--c-accent);
+    stroke-width: 2;
+}
+
+.node .title {
+    font-weight: 600;
+    font-size: var(--fs-sm);
+}
+
+.edge {
+    stroke: var(--c-border);
+    stroke-width: 1.5;
+    transition: all 0.2s ease;
+}
+
+.edge:hover {
+    stroke: var(--c-accent);
+    stroke-width: 2;
+}
+
+.edge.critical {
+    stroke: var(--c-crit);
+    stroke-width: 2;
+}
+
+.edge.arrow {
+    marker-end: url(#arrow);
+}

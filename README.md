@@ -1,10 +1,11 @@
 # HPC/AI Project Planner
 
-This is a single-file, offline-first project planning tool designed for High-Performance Computing (HPC) and AI projects. It helps you create, manage, and visualize complex project plans with dependencies, all within a single HTML file that you can save and share.
+This is an offline-first project planning tool designed for High-Performance Computing (HPC) and AI projects.
+The app is delivered as a static web page (index.html) with supporting assets under the `assets/` directory.
 
 ## How to Use
 
-1.  **Download:** Save the `index.html` file to your local machine.
+1.  **Download:** Save the entire project folder (`index.html` and the `assets/` directory) to your local machine.
 2.  **Open:** Open the `index.html` file in your web browser.
 3.  **Use:** The application is now ready to use, completely offline.
 

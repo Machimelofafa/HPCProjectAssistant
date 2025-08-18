@@ -4,8 +4,8 @@
 // This is a self-contained script that will run in a separate thread.
 
 // --- UTILITIES (copied from main script) ---
-function parseDate(s){ return new Date(s+'T00:00:00'); }
-function fmtDate(d){ return d.toISOString().slice(0,10); }
+function parseDate(s){ const [d,m,y] = s.split('-'); return new Date(`${y}-${m}-${d}T00:00:00`); }
+function fmtDate(d){ return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); }
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }

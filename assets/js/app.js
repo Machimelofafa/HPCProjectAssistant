@@ -1,6 +1,13 @@
 (function(){
 'use strict';
 
+// Feature Flags
+const features = {
+  ui: {
+    topSettingsToolbar: true,
+  }
+};
+
 const SCHEMA_VERSION = '1.0.0';
 
 /**
@@ -304,7 +311,7 @@ function adjustIncomingLags(task, delta){ const out=[]; for(const tok of (task.d
 // Centralized state manager (SM) to handle application state, including undo/redo.
 // -------------------------------------------------------------------------------
 const SM=(function(){
-  let state=deepFreeze({ startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[] });
+  let state=deepFreeze({ startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[], filterText: '', groupBy: 'none' });
   let listeners=[]; let lastCPMWarns=[];
   const undo=[]; const redo=[]; const MAX=100;
   const BASE_KEY='hpc-project-baselines';
@@ -1573,8 +1580,19 @@ function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.
 }
 function updateSelBadge(){
   $('#selBadge').textContent = `${SEL.size} selected`;
-  $('#bulkCount').textContent=String(SEL.size);
-  $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
+
+  const bulkCount = $('#bulkCount');
+  if (bulkCount) bulkCount.textContent=String(SEL.size);
+
+  const inlineCount = $('#inlineCount');
+  if (inlineCount) inlineCount.textContent=String(SEL.size);
+
+  const editBtn = $('#btn-edit-selected');
+  if (editBtn) editBtn.disabled = SEL.size === 0;
+
+  const bulkBtn = $('#btn-bulk-edit');
+  if (bulkBtn) bulkBtn.disabled = SEL.size === 0;
+
   renderInlineEditor();
   renderContextPanel(LAST_SEL);
 }
@@ -1645,6 +1663,151 @@ function refresh(){
     triggerCPM(SM.get());
 }
 
+function setupTopToolbar() {
+  const container = $('#new-toolbar-container');
+  if (!container || !features.ui.topSettingsToolbar) {
+    return;
+  }
+
+  const menuDefs = [
+    { id: 'project-settings', label: 'Project Calendar' },
+    { id: 'filter-group', label: 'Filter & Group' },
+    { id: 'subsystem-legend', label: 'Subsystem Legend' },
+    { id: 'edit-selected', label: 'Edit Selected' },
+    { id: 'bulk-edit', label: 'Bulk Edit' },
+    { id: 'template', label: 'Template' },
+    { id: 'validation-warnings', label: 'Validation' },
+    { id: 'legend', label: 'Legend' }
+  ];
+
+  menuDefs.forEach(def => {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+
+    const button = document.createElement('button');
+    button.className = 'btn';
+    button.id = `btn-${def.id}`;
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-controls', `panel-${def.id}`);
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = def.label;
+    wrapper.appendChild(button);
+
+    const panel = document.createElement('div');
+    panel.id = `panel-${def.id}`;
+    panel.className = 'action-menu';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-labelledby', `btn-${def.id}`);
+    panel.style.display = 'none';
+    panel.style.minWidth = '300px';
+    panel.style.padding = 'var(--space-4)';
+    const template = $(`#template-${def.id}`);
+    if (template) {
+      panel.innerHTML = '';
+      panel.appendChild(template.content.cloneNode(true));
+    } else {
+      panel.innerHTML = `<h3>Error</h3><p>Template not found for ${def.label}</p>`;
+    }
+    wrapper.appendChild(panel);
+
+    container.appendChild(wrapper);
+
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+      $$('#new-toolbar-container .action-menu.open').forEach(openMenu => {
+        if (openMenu.id !== panel.id) {
+          openMenu.classList.remove('open');
+          openMenu.style.display = 'none';
+          const otherButton = $(`[aria-controls="${openMenu.id}"]`);
+          if(otherButton) otherButton.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      if (isExpanded) {
+        panel.classList.remove('open');
+        button.setAttribute('aria-expanded', 'false');
+        setTimeout(() => { if (!panel.classList.contains('open')) panel.style.display = 'none'; }, 150);
+      } else {
+        panel.style.display = 'block';
+        setTimeout(() => {
+          panel.classList.add('open');
+          button.setAttribute('aria-expanded', 'true');
+          const focusable = panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+          focusable[0]?.focus();
+        }, 10);
+      }
+    });
+
+    panel.addEventListener('keydown', (e) => {
+        const focusable = Array.from(panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+        if (focusable.length === 0) return;
+
+        const key = e.key;
+
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+            e.preventDefault();
+            const activeEl = document.activeElement;
+            const currentIndex = focusable.indexOf(activeEl);
+            let nextIndex = currentIndex + (key === 'ArrowDown' ? 1 : -1);
+
+            if (nextIndex >= focusable.length) nextIndex = 0;
+            if (nextIndex < 0) nextIndex = focusable.length - 1;
+
+            focusable[nextIndex]?.focus();
+        }
+
+        if (key === 'Tab') {
+            e.preventDefault();
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+
+            if (e.shiftKey) {
+                if (document.activeElement === first) {
+                    last.focus();
+                } else {
+                    const idx = focusable.indexOf(document.activeElement);
+                    focusable[idx - 1]?.focus();
+                }
+            } else {
+                if (document.activeElement === last) {
+                    first.focus();
+                } else {
+                    const idx = focusable.indexOf(document.activeElement);
+                    focusable[idx + 1]?.focus();
+                }
+            }
+        }
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    const openMenu = $('#new-toolbar-container .action-menu.open');
+    if (openMenu && !openMenu.contains(e.target) && !openMenu.closest('#new-toolbar-container [aria-haspopup="true"]')) {
+      const button = $(`[aria-controls="${openMenu.id}"]`);
+      openMenu.classList.remove('open');
+      if(button) button.setAttribute('aria-expanded', 'false');
+      setTimeout(() => { if (!openMenu.classList.contains('open')) openMenu.style.display = 'none'; }, 150);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const openMenu = $('#new-toolbar-container .action-menu.open');
+      if (openMenu) {
+        const button = $(`[aria-controls="${openMenu.id}"]`);
+        openMenu.classList.remove('open');
+        if(button) {
+            button.setAttribute('aria-expanded', 'false');
+            button.focus();
+        }
+        setTimeout(() => { if (!openMenu.classList.contains('open')) openMenu.style.display = 'none'; }, 150);
+      }
+    }
+  });
+}
+
 function newProject(){
     SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'});
     $('#startDate').value=todayStr();
@@ -1707,6 +1870,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     })();
 
     setupLegend();
+    setupTopToolbar();
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
     if (saved) {
@@ -1731,6 +1895,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#startDate').value = ddmmyyyy_to_yyyymmdd(loadedState.startDate || todayStr());
     $('#calendarMode').value = loadedState.calendar || 'workdays';
     $('#holidayInput').value = (loadedState.holidays || []).join(', ');
+    if ($('#filterText')) $('#filterText').value = loadedState.filterText || '';
+    if ($('#groupBy')) $('#groupBy').value = loadedState.groupBy || 'none';
 
     refresh();
 
@@ -1791,8 +1957,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     startDateInput.addEventListener('blur', handleStartDateChange);
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), lastCPMResult); };
-    $('#filterText').oninput = ()=>{ refresh(); };
-    $('#groupBy').onchange = refresh;
+    $('#filterText').oninput = ()=>{ SM.setProjectProps({filterText: $('#filterText').value}, {name: 'Change Filter'}); refresh(); };
+    $('#groupBy').onchange = ()=>{ SM.setProjectProps({groupBy: $('#groupBy').value}, {name: 'Change Grouping'}); refresh(); };
     $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
     $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
     $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };

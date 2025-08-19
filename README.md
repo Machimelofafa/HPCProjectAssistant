@@ -11,6 +11,19 @@ The app is delivered as a static web page (index.html) with supporting assets un
 
 ## Features
 
+### Project Settings Toolbar
+
+All project settings, filters, and tools are now located in a new toolbar in the center of the header. This includes:
+
+*   **Project Calendar:** Set the project start date, calendar type, holidays, and slack threshold.
+*   **Filter & Group:** Filter tasks by name or phase, and group them in the timeline view.
+*   **Subsystem Legend:** Toggle visibility of tasks based on their subsystem.
+*   **Edit Selected:** Perform quick edits on selected tasks.
+*   **Bulk Edit:** Apply changes to multiple selected tasks at once.
+*   **Template:** Insert pre-defined sets of tasks into your project.
+*   **Validation:** View warnings and errors in your project plan.
+*   **Legend:** View a key for the different symbols and colors used in the application.
+
 ### Keyboard Shortcuts
 
 *   **Zoom:** Use `Ctrl` + `Mouse Wheel` to zoom in and out of the timeline and dependency graph.

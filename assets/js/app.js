@@ -177,6 +177,38 @@ function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function deepFreeze(o){ if(o&&typeof o==='object'&&!Object.isFrozen(o)){ Object.freeze(o); for(const k of Object.keys(o)){ deepFreeze(o[k]); } } return o; }
 function debounce(fn, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn.apply(this, args), delay); }; }
 window.debounce=debounce;
+
+// ----------------------------[ SETTINGS STORE ]----------------------------
+const UI_FLAGS = { topSettingsToolbar: true };
+window.ui = UI_FLAGS;
+
+const SettingsStore = (function(){
+  const state = {
+    calendar: { startDate: todayStr(), mode: 'workdays', holidays: [] },
+    slackThreshold: 2,
+    filters: { text: '', groupBy: 'none' },
+    subsystemLegend: {},
+    legend: true,
+    templates: {},
+    validation: {},
+    selection: []
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem('hpc-settings') || '{}');
+    Object.assign(state, saved);
+    if(saved.calendar) state.calendar = Object.assign(state.calendar, saved.calendar);
+    if(saved.filters) state.filters = Object.assign(state.filters, saved.filters);
+  } catch(e){}
+  const listeners = {};
+  function save(){ localStorage.setItem('hpc-settings', JSON.stringify(state)); }
+  function emit(ev, detail){ (listeners[ev]||[]).forEach(fn=>fn(detail)); }
+  function on(ev, fn){ (listeners[ev]||(listeners[ev]=[])).push(fn); }
+  function set(part){ Object.assign(state, part); save(); emit('settings:changed', state); }
+  function setFilters(part){ state.filters = Object.assign(state.filters, part); save(); emit('filters:changed', state.filters); emit('settings:changed', state); }
+  function setCalendar(part){ state.calendar = Object.assign(state.calendar, part); save(); emit('settings:changed', state); }
+  return { get: ()=>state, set, setFilters, setCalendar, on };
+})();
+window.SettingsStore = SettingsStore;
 function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._h); showToast._h=setTimeout(()=>{ t.style.display='none'; }, 2600); }
 function showHint(x,y,msg){ const h=$('#hint'); h.textContent=msg; h.style.left=(x+12)+'px'; h.style.top=(y+12)+'px'; h.style.display='block'; }
 function hideHint(){ $('#hint').style.display='none'; }
@@ -1658,6 +1690,18 @@ function newProject(){
 // Main entry point of the application. Initializes the UI and sets up event listeners.
 // -------------------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', ()=>{
+  if (UI_FLAGS.topSettingsToolbar) {
+    document.body.classList.add('top-toolbar');
+  }
+  const ss = SettingsStore.get();
+  $('#slackThreshold').value = ss.slackThreshold;
+  $('#filterText').value = ss.filters.text;
+  $('#groupBy').value = ss.filters.groupBy;
+  $('#calendarMode').value = ss.calendar.mode;
+  $('#startDate').value = ss.calendar.startDate;
+  $('#holidayInput').value = (ss.calendar.holidays || []).join(', ');
+  SettingsStore.on('settings:changed', ()=> refresh());
+  SettingsStore.on('filters:changed', ()=> refresh());
   try{
     if (window.Worker) {
         cpmWorker = createCPMWorker();
@@ -1761,8 +1805,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     });
 
     // controls
-    $('#slackThreshold').onchange = refresh;
-    $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); refresh(); };
+    $('#slackThreshold').onchange = ()=>{ SettingsStore.set({slackThreshold: parseInt($('#slackThreshold').value,10)||0}); refresh(); };
+    $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); SettingsStore.setCalendar({mode: $('#calendarMode').value}); refresh(); };
     const startDateInput = $('#startDate');
     const startDateError = $('#startDateError');
 
@@ -1784,16 +1828,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
       startDateError.style.display = 'none';
       startDateInput.classList.remove('error');
       SM.setProjectProps({startDate: value}, {name: 'Change Start Date'});
+      SettingsStore.setCalendar({startDate: startDateInput.value});
       refresh();
     }
 
     startDateInput.addEventListener('change', handleStartDateChange);
     startDateInput.addEventListener('blur', handleStartDateChange);
-    $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); refresh(); };
+    $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); SettingsStore.setCalendar({holidays: parseHolidaysInput()}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), lastCPMResult); };
-    $('#filterText').oninput = ()=>{ refresh(); };
-    $('#groupBy').onchange = refresh;
-    $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
+    $('#filterText').oninput = ()=>{ SettingsStore.setFilters({text: $('#filterText').value}); refresh(); };
+    $('#groupBy').onchange = ()=>{ SettingsStore.setFilters({groupBy: $('#groupBy').value}); refresh(); };
+    $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; SettingsStore.setFilters({text: ''}); $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
     $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
     $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
 
@@ -2470,4 +2515,34 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     });
   });
 
+})();
+
+(function(){
+  'use strict';
+  function setupDropdown(buttonId, menuId){
+    const btn=document.getElementById(buttonId);
+    const menu=document.getElementById(menuId);
+    if(!btn || !menu) return;
+    const getItems=()=>Array.from(menu.querySelectorAll('button, [href], input, select, textarea'));
+    function openMenu(){
+      menu.style.display='block';
+      setTimeout(()=>{ menu.classList.add('open'); btn.setAttribute('aria-expanded','true'); getItems()[0]?.focus(); },10);
+    }
+    function closeMenu(){
+      menu.classList.remove('open');
+      btn.setAttribute('aria-expanded','false');
+      setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
+    }
+    btn.addEventListener('click',(e)=>{ e.stopPropagation(); const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); });
+    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); });
+    menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
+  }
+  setupDropdown('btn-project-calendar','menu-project-calendar');
+  setupDropdown('btn-filter-group','menu-filter-group');
+  setupDropdown('btn-subsystem-legend','menu-subsystem-legend');
+  setupDropdown('btn-edit-selected','menu-edit-selected');
+  setupDropdown('btn-bulk-edit','menu-bulk-edit');
+  setupDropdown('btn-template','menu-template');
+  setupDropdown('btn-validation','menu-validation');
+  setupDropdown('btn-legend','menu-legend');
 })();

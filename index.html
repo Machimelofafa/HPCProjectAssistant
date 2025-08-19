@@ -130,6 +130,183 @@
     <div class="header-left">
       <h1>HPC/AI Planner</h1>
     </div>
+    <div class="header-center">
+      <div class="toolbar" id="top-toolbar">
+        <div class="toolbar-item">
+          <button class="btn" id="btn-project-calendar" aria-haspopup="true" aria-expanded="false">Project Calendar</button>
+          <div id="menu-project-calendar" class="action-menu" role="menu" style="display:none">
+            <div class="row" style="flex-direction: column; align-items: flex-start;">
+              <label for="startDate" class="label">
+                <span class="label-icon" aria-hidden="true">📅</span>
+                Start date
+              </label>
+              <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp startDateError">
+              <div id="startDateError" class="form-help error" style="display: none; margin-top: var(--space-1);"></div>
+              <div id="startDateHelp" class="form-help">Use DD-MM-YYYY format. Arrow keys change day, Shift+arrow for week, Alt+arrow for month.</div>
+            </div>
+            <div class="row">
+              <label for="calendarMode" class="label">
+                <span class="label-icon" aria-hidden="true">🗓️</span>
+                Calendar
+              </label>
+              <select id="calendarMode" class="form-input" aria-describedby="calendarModeHelp">
+                <option value="workdays">Working days (Mon–Fri + holidays)</option>
+                <option value="calendar">Calendar days</option>
+              </select>
+              <div id="calendarModeHelp" class="sr-only">Choose between working days or calendar days for project scheduling</div>
+            </div>
+            <div class="row" style="align-items:flex-start">
+              <label for="holidayInput" class="label full-width">
+                <span class="label-icon" aria-hidden="true">🎉</span>
+                Holidays (DD‑MM‑YYYY)
+              </label>
+              <textarea id="holidayInput" placeholder="01-01-2025, 01-05-2025, 25-12-2025" class="form-input" aria-describedby="holidayInputHelp"></textarea>
+              <div id="holidayInputHelp" class="sr-only">Enter holiday dates in DD-MM-YYYY format, separated by commas</div>
+            </div>
+            <div class="row">
+              <label for="slackThreshold" class="label">
+                <span class="label-icon" aria-hidden="true">⏰</span>
+                Slack threshold
+              </label>
+              <input type="number" id="slackThreshold" min="0" value="2" class="form-input" aria-describedby="slackThresholdHelp"> days
+              <div id="slackThresholdHelp" class="sr-only">Set the minimum slack threshold in days for highlighting critical paths</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-filter-group" aria-haspopup="true" aria-expanded="false">Filter &amp; Group</button>
+          <div id="menu-filter-group" class="action-menu" role="menu" style="display:none">
+            <div class="row">
+              <label for="filterText" class="label sr-only">Filter</label>
+              <div class="search-container">
+                <span class="search-icon" aria-hidden="true">🔍</span>
+                <input type="text" id="filterText" placeholder="Filter by name or phase…" class="form-input search-input" aria-label="Filter tasks by name or phase">
+              </div>
+            </div>
+            <div class="row">
+              <label for="groupBy" class="label">
+                <span class="label-icon" aria-hidden="true">📊</span>
+                Group by
+              </label>
+              <select id="groupBy" class="form-input" aria-describedby="groupByHelp">
+                <option value="none">None</option>
+                <option value="phase">Phase</option>
+                <option value="subsystem">Subsystem</option>
+              </select>
+              <div id="groupByHelp" class="sr-only">Choose how to group and organize tasks in the display</div>
+            </div>
+            <div class="row filter-actions">
+              <button class="btn small" id="btnFilterClear" aria-label="Clear all active filters"><span class="btn-icon" aria-hidden="true">🧹</span>Clear filters</button>
+              <button class="btn small" id="btnSelectFiltered" aria-label="Select all filtered tasks"><span class="btn-icon" aria-hidden="true">✅</span>Select filtered</button>
+              <button class="btn small" id="btnClearSel" aria-label="Clear current task selection"><span class="btn-icon" aria-hidden="true">❌</span>Clear selection</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-subsystem-legend" aria-haspopup="true" aria-expanded="false">Subsystem Legend</button>
+          <div id="menu-subsystem-legend" class="action-menu" role="menu" style="display:none">
+            <div class="row subsystem-controls">
+              <button class="btn small" id="btnSubAll"><span class="btn-icon">✅</span>Select All</button>
+              <button class="btn small" id="btnSubNone"><span class="btn-icon">❌</span>Clear All</button>
+            </div>
+            <div class="subsys" id="subsysFilters"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-edit-selected" aria-haspopup="true" aria-expanded="false">Edit Selected</button>
+          <div id="menu-edit-selected" class="action-menu" role="menu" style="display:none">
+            <div class="inline-edit" id="inlineEdit"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-bulk-edit" aria-haspopup="true" aria-expanded="false">Bulk Edit</button>
+          <div id="menu-bulk-edit" class="action-menu" role="menu" style="display:none">
+            <div class="bulk">
+              <div class="row-3 row">
+                <label>Phase <input type="text" id="bulkPhase" placeholder="leave blank = skip"></label>
+                <label>Subsystem
+                  <select id="bulkSub">
+                    <option value="">—</option>
+                    <option>System</option><option>power/VRM</option><option>PCIe</option><option>BMC</option><option>BIOS</option><option>FW</option><option>Mech</option><option>Thermal</option>
+                  </select>
+                </label>
+                <label>Active <select id="bulkActive"><option value="">—</option><option value="true">true</option><option value="false">false</option></select></label>
+              </div>
+              <div class="row-3 row">
+                <label>Duration <input type="number" id="bulkDur" min="0" placeholder="e.g. 5"></label>
+                <label>Mode
+                  <select id="bulkDurMode"><option value="set">set</option><option value="add">+/-</option></select>
+                </label>
+                <label>Name prefix <input type="text" id="bulkPrefix" placeholder="e.g. [R1]"></label>
+              </div>
+              <div class="row">
+                <label>Progress (%) <input type="number" id="bulkPct" min="0" max="100" placeholder="0"></label>
+              </div>
+              <div class="row">
+                <label>Add dependency token <input type="text" id="bulkAddDep" placeholder="e.g. FS:mobo_assembly+2d"></label>
+                <label><input type="checkbox" id="bulkClearDeps"> clear all deps</label>
+              </div>
+              <div class="row">
+                <label>Shift with SNET (+/‑ days) <input type="number" id="bulkShift" placeholder="0"></label>
+                <div style="display:flex; gap:.35rem"><button class="btn small" id="btnApplyBulk">Apply</button><button class="btn small" id="btnBulkReset">Reset fields</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-template" aria-haspopup="true" aria-expanded="false">Template</button>
+          <div id="menu-template" class="action-menu" role="menu" style="display:none">
+            <div class="row">
+              <label>Library
+                <select id="tplSelect">
+                  <option value="hpc">HPC Bring‑up (sample)</option>
+                  <option value="sw">Software Sprint (2‑week)</option>
+                  <option value="hw">Board Spin Cycle</option>
+                </select>
+              </label>
+            </div>
+            <div class="row" style="gap:.4rem; flex-wrap:wrap">
+              <button class="btn" id="btnInsertTpl">Insert library</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-validation" aria-haspopup="true" aria-expanded="false">Validation &amp; Warnings</button>
+          <div id="menu-validation" class="action-menu" role="menu" style="display:none">
+            <div class="row" style="justify-content:flex-start; gap:.5rem">
+              <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
+              <select id="severityFilter">
+                <option value="all">Show: All</option>
+                <option value="critical">Critical only</option>
+                <option value="error">Errors &amp; up</option>
+                <option value="warn">Warnings &amp; up</option>
+                <option value="info">Info only</option>
+              </select>
+            </div>
+            <div id="warning-badges"></div>
+            <div class="issues" id="issues"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-item">
+          <button class="btn" id="btn-legend" aria-haspopup="true" aria-expanded="false">Legend</button>
+          <div id="menu-legend" class="action-menu" role="menu" style="display:none">
+            <div class="p-sm" style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+              <span class="pill">Links: FS/SS/FF/SF + \+/- lag (d or w)</span>
+              <span class="pill">Constraints: MSO / SNET</span>
+              <span class="pill">Severities: info / warn / error / critical</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
     <div class="header-right">
       <button class="btn" id="toggle-theme">Theme</button>
       <button class="btn" id="toggle-density">Density</button>
@@ -169,187 +346,7 @@
   </div>
   <div id="fatal"></div>
   <div class="container grid" id="layout" style="display:grid">
-    <aside class="panel controls" id="left-panel">
-      <div class="layout" id="appRoot">
-        <details open>
-          <summary>
-            <h2><span class="section-icon" aria-hidden="true">📅</span> Project Settings</h2>
-          </summary>
-          <aside>
-          <div class="row" style="flex-direction: column; align-items: flex-start;">
-            <label for="startDate" class="label">
-              <span class="label-icon" aria-hidden="true">📅</span>
-              Start date
-            </label>
-            <input type="date" id="startDate" class="form-input" aria-describedby="startDateHelp startDateError">
-            <div id="startDateError" class="form-help error" style="display: none; margin-top: var(--space-1);"></div>
-            <div id="startDateHelp" class="form-help">Use DD-MM-YYYY format. Arrow keys change day, Shift+arrow for week, Alt+arrow for month.</div>
-          </div>
-          <div class="row">
-            <label for="calendarMode" class="label">
-              <span class="label-icon" aria-hidden="true">🗓️</span>
-              Calendar
-            </label>
-            <select id="calendarMode" class="form-input" aria-describedby="calendarModeHelp">
-              <option value="workdays">Working days (Mon–Fri + holidays)</option>
-              <option value="calendar">Calendar days</option>
-            </select>
-            <div id="calendarModeHelp" class="sr-only">Choose between working days or calendar days for project scheduling</div>
-          </div>
-          <div class="row" style="align-items:flex-start">
-            <label for="holidayInput" class="label full-width">
-              <span class="label-icon" aria-hidden="true">🎉</span>
-              Holidays (DD‑MM‑YYYY)
-            </label>
-            <textarea id="holidayInput" placeholder="01-01-2025, 01-05-2025, 25-12-2025" class="form-input" aria-describedby="holidayInputHelp"></textarea>
-            <div id="holidayInputHelp" class="sr-only">Enter holiday dates in DD-MM-YYYY format, separated by commas</div>
-          </div>
-          <div class="row">
-            <label for="slackThreshold" class="label">
-              <span class="label-icon" aria-hidden="true">⏰</span>
-              Slack threshold
-            </label>
-            <input type="number" id="slackThreshold" min="0" value="2" class="form-input" aria-describedby="slackThresholdHelp"> days
-            <div id="slackThresholdHelp" class="sr-only">Set the minimum slack threshold in days for highlighting critical paths</div>
-          </div>
-
-          <h2><span class="section-icon" aria-hidden="true">🔍</span> Filter & Group</h2>
-                  <div class="row">
-              <label for="filterText" class="label sr-only">Filter</label>
-              <div class="search-container">
-                <span class="search-icon" aria-hidden="true">🔍</span>
-                <input type="text" id="filterText" placeholder="Filter by name or phase…" class="form-input search-input" aria-label="Filter tasks by name or phase">
-              </div>
-            </div>
-          <div class="row">
-            <label for="groupBy" class="label">
-              <span class="label-icon" aria-hidden="true">📊</span>
-              Group by
-            </label>
-            <select id="groupBy" class="form-input" aria-describedby="groupByHelp">
-              <option value="none">None</option>
-              <option value="phase">Phase</option>
-              <option value="subsystem">Subsystem</option>
-            </select>
-            <div id="groupByHelp" class="sr-only">Choose how to group and organize tasks in the display</div>
-          </div>
-          <div class="row filter-actions">
-            <button class="btn small" id="btnFilterClear" aria-label="Clear all active filters">
-              <span class="btn-icon" aria-hidden="true">🧹</span>
-              Clear filters
-            </button>
-            <button class="btn small" id="btnSelectFiltered" aria-label="Select all filtered tasks">
-              <span class="btn-icon" aria-hidden="true">✅</span>
-              Select filtered
-            </button>
-            <button class="btn small" id="btnClearSel" aria-label="Clear current task selection">
-              <span class="btn-icon" aria-hidden="true">❌</span>
-              Clear selection
-            </button>
-          </div>
-
-          <h2><span class="section-icon" aria-hidden="true">🎨</span> Subsystem Legend</h2>
-          <div class="row subsystem-controls">
-            <button class="btn small" id="btnSubAll">
-              <span class="btn-icon">✅</span>
-              Select All
-            </button>
-            <button class="btn small" id="btnSubNone">
-              <span class="btn-icon">❌</span>
-              Clear All
-            </button>
-          </div>
-          <div class="subsys" id="subsysFilters"></div>
-
-          <h2>Edit Selected (<span id="inlineCount">0</span>)</h2>
-          <div class="inline-edit" id="inlineEdit"></div>
-
-          <details>
-            <summary>
-              <h2>Bulk Edit (<span id="bulkCount">0</span>)</h2>
-            </summary>
-            <div class="bulk">
-              <div class="row-3 row">
-                <label>Phase <input type="text" id="bulkPhase" placeholder="leave blank = skip"></label>
-                <label>Subsystem
-                  <select id="bulkSub">
-                    <option value="">—</option>
-                    <option>System</option><option>power/VRM</option><option>PCIe</option><option>BMC</option><option>BIOS</option><option>FW</option><option>Mech</option><option>Thermal</option>
-                  </select>
-                </label>
-                <label>Active <select id="bulkActive"><option value="">—</option><option value="true">true</option><option value="false">false</option></select></label>
-              </div>
-              <div class="row-3 row">
-                <label>Duration <input type="number" id="bulkDur" min="0" placeholder="e.g. 5"></label>
-                <label>Mode
-                  <select id="bulkDurMode"><option value="set">set</option><option value="add">+/-</option></select>
-                </label>
-                <label>Name prefix <input type="text" id="bulkPrefix" placeholder="e.g. [R1]"></label>
-              </div>
-              <div class="row">
-                <label>Progress (%) <input type="number" id="bulkPct" min="0" max="100" placeholder="0"></label>
-              </div>
-              <div class="row">
-                <label>Add dependency token <input type="text" id="bulkAddDep" placeholder="e.g. FS:mobo_assembly+2d"></label>
-                <label><input type="checkbox" id="bulkClearDeps"> clear all deps</label>
-              </div>
-              <div class="row">
-                <label>Shift with SNET (+/‑ days) <input type="number" id="bulkShift" placeholder="0"></label>
-                <div style="display:flex; gap:.35rem"><button class="btn small" id="btnApplyBulk">Apply</button><button class="btn small" id="btnBulkReset">Reset fields</button></div>
-              </div>
-            </div>
-          </details>
-
-          <details>
-            <summary>
-              <h2>Templates</h2>
-            </summary>
-            <div class="row">
-              <label>Library
-                <select id="tplSelect">
-                  <option value="hpc">HPC Bring‑up (sample)</option>
-                  <option value="sw">Software Sprint (2‑week)</option>
-                  <option value="hw">Board Spin Cycle</option>
-                </select>
-              </label>
-            </div>
-            <div class="row" style="gap:.4rem; flex-wrap:wrap">
-              <button class="btn" id="btnInsertTpl">Insert library</button>
-            </div>
-          </details>
-
-          <details>
-            <summary style="display: flex; justify-content: space-between; align-items: center;">
-              <h2>Validation & Warnings</h2>
-              <span id="warning-badges"></span>
-            </summary>
-            <div class="row" style="justify-content:flex-start; gap:.5rem">
-              <button class="btn small" id="btnAutoFix">Auto‑fix common</button>
-              <select id="severityFilter">
-                <option value="all">Show: All</option>
-                <option value="critical">Critical only</option>
-                <option value="error">Errors & up</option>
-                <option value="warn">Warnings & up</option>
-                <option value="info">Info only</option>
-              </select>
-            </div>
-            <div class="issues" id="issues"></div>
-          </details>
-
-          <details>
-            <summary>
-              <h2>Legend</h2>
-            </summary>
-            <div class="p-sm" style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
-              <span class="pill">Links: FS/SS/FF/SF + \+/- lag (d or w)</span>
-              <span class="pill">Constraints: MSO / SNET</span>
-              <span class="pill">Severities: info / warn / error / critical</span>
-            </div>
-          </details>
-        </aside>
-        </details>
-      </div>
-    </aside>
+    <aside class="panel controls" id="left-panel"></aside>
     <section class="panel" id="main">
         <div class="kpis">
             <div class="kpi card" id="kpiCritical">Critical: 12</div>

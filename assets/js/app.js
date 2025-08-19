@@ -855,7 +855,6 @@ function renderGraph(project, cpm){
           } else {
             selectOnly(t.id);
           }
-          refresh();
         });
         g.appendChild(node);
     }
@@ -976,7 +975,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       } else {
         selectOnly(t.id);
       }
-      refresh();
     });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
@@ -1609,6 +1607,8 @@ function updateSelBadge(){
   $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
   renderInlineEditor();
   renderContextPanel(LAST_SEL);
+  $$('#gantt .bar').forEach(b=> b.classList.toggle('selected', SEL.has(b.dataset.id)));
+  $$('#graphSvg .node').forEach(n=> n.classList.toggle('selected', SEL.has(n.dataset.id)));
 }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];

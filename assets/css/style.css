@@ -194,13 +194,30 @@
   
   .header-left h1{
     font-size: var(--font-size-xl);
-    margin: 0; 
+    margin: 0;
     letter-spacing: -0.025em;
     font-weight: 700;
     color: var(--ink);
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
+  }
+
+  .header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  #top-toolbar {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .toolbar-item {
+    position: relative;
   }
   
   .title-icon {
@@ -215,13 +232,7 @@
     margin-left: var(--spacing-sm);
   }
   
-  .header-center {
-    display: flex;
-    gap: var(--spacing-xl);
-    align-items: flex-start;
-  }
-
-  .toolbar-group {
+    .toolbar-group {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
@@ -2010,6 +2021,14 @@
     gap: var(--spacing-lg);
     padding: var(--spacing-lg);
     align-items: start;
+  }
+
+  body.top-toolbar .container.grid {
+    grid-template-columns: 1fr 280px;
+  }
+
+  body.top-toolbar #left-panel {
+    display: none;
   }
 
   .panel {

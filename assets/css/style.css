@@ -930,6 +930,10 @@
   #timeline .gantt .bar text.label {
     font-weight: 700;
     fill: var(--ink);
+    /* Explicitly remove any stroke or shadow from timeline labels */
+    stroke-width: 0;
+    text-shadow: none;
+    paint-order: fill;
   }
   
   /* Enhanced issues */

@@ -855,7 +855,6 @@ function renderGraph(project, cpm){
           } else {
             selectOnly(t.id);
           }
-          refresh();
         });
         g.appendChild(node);
     }
@@ -976,7 +975,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       } else {
         selectOnly(t.id);
       }
-      refresh();
     });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
@@ -1251,7 +1249,6 @@ function renderIssues(project, cpm, targetSel) {
               const taskId = taskLink.dataset.taskId;
               if (taskId) {
                 selectOnly(taskId);
-                refresh();
                 const bar = document.querySelector(`.bar[data-id="${taskId}"]`);
                 if (bar) {
                   bar.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -1371,7 +1368,6 @@ function renderContextPanel(selectedId) {
   // Add event listeners for the buttons.
   $('#ctx-btn-edit').addEventListener('click', () => {
     selectOnly(task.id);
-    refresh(); // to make sure inline editor is rendered
     const inlineEditor = $('#inlineEdit');
     if (inlineEditor) {
       inlineEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1514,13 +1510,13 @@ function toggleSelect(id){
     SEL.add(id);
     LAST_SEL=id;
   }
-  updateSelBadge();
+  updateSelectionUI();
 }
 function selectOnly(id){
   SEL.clear();
   SEL.add(id);
   LAST_SEL=id;
-  updateSelBadge();
+  updateSelectionUI();
 }
 function moveSelection(dir){
   const tasks=SM.get().tasks.filter(matchesFilters);
@@ -1529,7 +1525,6 @@ function moveSelection(dir){
   if(idx===-1) idx = dir>0?0:tasks.length-1;
   else idx=(idx+dir+tasks.length)%tasks.length;
   selectOnly(tasks[idx].id);
-  refresh();
 }
 function deleteSelected(){
   if(!SEL.size) return;
@@ -1585,11 +1580,11 @@ function duplicateSelected(){
   SEL.clear();
   clones.forEach(c=>SEL.add(c.id));
   LAST_SEL=clones.length?clones[clones.length-1].id:null;
-  updateSelBadge();
+  updateSelectionUI();
   showToast(`Duplicated ${clones.length} task${clones.length>1?'s':''}`);
   refresh();
 }
-function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelBadge(); }
+function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelectionUI(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
   for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
     const dur=parseDurationStrict(t.duration).days||0;
@@ -1609,6 +1604,21 @@ function updateSelBadge(){
   $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
   renderInlineEditor();
   renderContextPanel(LAST_SEL);
+  if($('.tab.active') && $('.tab.active').dataset.tab==='graph' && graphInitialized && lastCPMResult){
+    renderGraph(SM.get(), lastCPMResult);
+  }
+}
+
+function updateSelectionUI(){
+  $$('#gantt .bar').forEach(el=>{
+    if(SEL.has(el.dataset.id)) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+  $$('#graphSvg .node').forEach(el=>{
+    if(SEL.has(el.dataset.id)) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+  updateSelBadge();
 }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
@@ -1839,8 +1849,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#filterText').oninput = ()=>{ SettingsStore.setFilters({text: $('#filterText').value}); refresh(); };
     $('#groupBy').onchange = ()=>{ SettingsStore.setFilters({groupBy: $('#groupBy').value}); refresh(); };
     $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; SettingsStore.setFilters({text: ''}); $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
-    $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
-    $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
+    $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelectionUI(); };
+    $('#btnClearSel').onclick=()=>{ clearSelection(); };
 
     // bulk
     $('#btnApplyBulk').onclick=applyBulk; $('#btnBulkReset').onclick=()=>{ ['bulkPhase','bulkSub','bulkActive','bulkDur','bulkDurMode','bulkPrefix','bulkPct','bulkAddDep','bulkClearDeps','bulkShift'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }); };
@@ -1984,7 +1994,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       // The SM.addTasks in insertTemplate doesn't trigger a refresh, so force one.
       setTimeout(() => refresh(), 0);
     };
-    $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); refresh(); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks, {name: 'Add Dependency'}); refresh(); } } } };
+    $('#ctxMenu').onclick=(e)=>{ const act=e.target.dataset.action; const id=$('#ctxMenu').dataset.id; hideContextMenu(); if(!id||!act) return; if(act==='edit'){ selectOnly(id); const inp=$('#inlineEdit input'); inp&&inp.focus(); } else if(act==='duplicate'){ selectOnly(id); duplicateSelected(); } else if(act==='delete'){ selectOnly(id); deleteSelected(); } else if(act==='adddep'){ const tok=prompt('Dependency token (e.g. FS:pred+2d)'); if(tok){ const s=SM.get(); const t=s.tasks.find(x=>x.id===id); if(t){ t.deps=(t.deps||[]).concat([tok]); SM.replaceTasks(s.tasks, {name: 'Add Dependency'}); refresh(); } } } };
 
     // --- Action Menu Handlers ---
 

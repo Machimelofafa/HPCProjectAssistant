@@ -849,13 +849,22 @@ function renderGraph(project, cpm){
         metaText.textContent = `${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}`;
         node.appendChild(metaText);
 
-        node.addEventListener('click', (ev)=>{
-          if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-            toggleSelect(t.id);
-          } else {
-            selectOnly(t.id);
+        node.addEventListener('pointerdown', (ev)=>{
+          node._px0 = ev.clientX;
+          node._py0 = ev.clientY;
+        });
+        node.addEventListener('pointerup', (ev)=>{
+          const dx = Math.abs(ev.clientX - (node._px0||0));
+          const dy = Math.abs(ev.clientY - (node._py0||0));
+          node._px0 = node._py0 = null;
+          if (dx < 2 && dy < 2) {
+            if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+              toggleSelect(t.id);
+            } else {
+              selectOnly(t.id);
+            }
+            refresh();
           }
-          refresh();
         });
         g.appendChild(node);
     }
@@ -970,14 +979,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{
-      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-        toggleSelect(t.id);
-      } else {
-        selectOnly(t.id);
-      }
-      refresh();
-    });
+    // selection handled in pointerup
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
 
@@ -1040,6 +1042,12 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     hideHint();
     const gg = $(`.bar[data-id="${drag.id}"]`, svg);
     if (!drag.moved) {
+      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+        toggleSelect(drag.id);
+      } else {
+        selectOnly(drag.id);
+      }
+      refresh();
       gg.classList.remove('moved', 'invalid', 'valid');
       drag = null;
       return;

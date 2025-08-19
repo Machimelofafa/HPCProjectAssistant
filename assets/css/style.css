@@ -836,6 +836,10 @@
     font-size: 13px;
     fill: var(--ink);
     font-weight: 500;
+    /* Ensure bar labels are fill-only */
+    filter: none;
+    stroke: none;
+    text-shadow: none;
   }
   
   /* Enhanced task names in timeline for better visibility */
@@ -878,8 +882,10 @@
     cursor: ew-resize;
   }
   
-  .gantt .bar.moved{
-    filter: drop-shadow(0 0 10px rgba(49, 130, 206, 0.35));
+  /* Apply moved shadow only to bar rectangles */
+  .gantt .bar.moved rect{
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.05))
+            drop-shadow(0 0 10px rgba(49, 130, 206, 0.35));
   }
   
   .gantt .bar.invalid rect{
@@ -924,6 +930,10 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Gantt text policy: fill-only, no outlines */
+    filter: none;
+    stroke: none;
+    text-shadow: none;
   }
   
   /* Task labels specifically */

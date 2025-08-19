@@ -855,7 +855,6 @@ function renderGraph(project, cpm){
           } else {
             selectOnly(t.id);
           }
-          refresh();
         });
         g.appendChild(node);
     }
@@ -976,7 +975,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       } else {
         selectOnly(t.id);
       }
-      refresh();
     });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
@@ -1506,6 +1504,20 @@ function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header
 // ------------------------------------------------------------------------------------
 const SEL=new Set();
 let LAST_SEL=null;
+const debouncedRefresh = debounce(refresh, 50);
+
+function updateSelectionUI() {
+  document.querySelectorAll('.bar').forEach(el => {
+    if (SEL.has(el.dataset.id)) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+  document.querySelectorAll('.node').forEach(el => {
+    if (SEL.has(el.dataset.id)) el.classList.add('selected');
+    else el.classList.remove('selected');
+  });
+  renderContextPanel(LAST_SEL);
+  updateSelBadge();
+}
 function toggleSelect(id){
   if(SEL.has(id)){
     SEL.delete(id);
@@ -1514,13 +1526,15 @@ function toggleSelect(id){
     SEL.add(id);
     LAST_SEL=id;
   }
-  updateSelBadge();
+  updateSelectionUI();
+  debouncedRefresh();
 }
 function selectOnly(id){
   SEL.clear();
   SEL.add(id);
   LAST_SEL=id;
-  updateSelBadge();
+  updateSelectionUI();
+  debouncedRefresh();
 }
 function moveSelection(dir){
   const tasks=SM.get().tasks.filter(matchesFilters);
@@ -1529,7 +1543,6 @@ function moveSelection(dir){
   if(idx===-1) idx = dir>0?0:tasks.length-1;
   else idx=(idx+dir+tasks.length)%tasks.length;
   selectOnly(tasks[idx].id);
-  refresh();
 }
 function deleteSelected(){
   if(!SEL.size) return;
@@ -1585,11 +1598,11 @@ function duplicateSelected(){
   SEL.clear();
   clones.forEach(c=>SEL.add(c.id));
   LAST_SEL=clones.length?clones[clones.length-1].id:null;
-  updateSelBadge();
+  updateSelectionUI();
   showToast(`Duplicated ${clones.length} task${clones.length>1?'s':''}`);
   refresh();
 }
-function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelBadge(); }
+function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelectionUI(); debouncedRefresh(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
   for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
     const dur=parseDurationStrict(t.duration).days||0;
@@ -1608,7 +1621,6 @@ function updateSelBadge(){
   $('#bulkCount').textContent=String(SEL.size);
   $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
   renderInlineEditor();
-  renderContextPanel(LAST_SEL);
 }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
@@ -1839,8 +1851,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#filterText').oninput = ()=>{ SettingsStore.setFilters({text: $('#filterText').value}); refresh(); };
     $('#groupBy').onchange = ()=>{ SettingsStore.setFilters({groupBy: $('#groupBy').value}); refresh(); };
     $('#btnFilterClear').onclick=()=>{ $('#filterText').value=''; SettingsStore.setFilters({text: ''}); $$('#subsysFilters input[type="checkbox"]').forEach(c=>c.checked=true); refresh(); };
-    $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelBadge(); refresh(); };
-    $('#btnClearSel').onclick=()=>{ clearSelection(); refresh(); };
+    $('#btnSelectFiltered').onclick=()=>{ if(!lastCPMResult) return; const ids=new Set(lastCPMResult.tasks.filter(matchesFilters).map(t=>t.id)); ids.forEach(id=>SEL.add(id)); updateSelectionUI(); debouncedRefresh(); };
+    $('#btnClearSel').onclick=()=>{ clearSelection(); };
 
     // bulk
     $('#btnApplyBulk').onclick=applyBulk; $('#btnBulkReset').onclick=()=>{ ['bulkPhase','bulkSub','bulkActive','bulkDur','bulkDurMode','bulkPrefix','bulkPct','bulkAddDep','bulkClearDeps','bulkShift'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; }); };

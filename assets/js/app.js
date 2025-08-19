@@ -970,14 +970,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{
-      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-        toggleSelect(t.id);
-      } else {
-        selectOnly(t.id);
-      }
-      refresh();
-    });
     bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
     g.appendChild(bar); y+=rowH; });
 
@@ -1041,6 +1033,12 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const gg = $(`.bar[data-id="${drag.id}"]`, svg);
     if (!drag.moved) {
       gg.classList.remove('moved', 'invalid', 'valid');
+      if (ev.shiftKey||ev.metaKey||ev.ctrlKey) {
+        toggleSelect(drag.id);
+      } else {
+        selectOnly(drag.id);
+      }
+      refresh();
       drag = null;
       return;
     }
@@ -1661,10 +1659,9 @@ function triggerCPM(project) {
 function renderAll(project, cpm) {
     if (!cpm) return;
     renderGantt(project, cpm);
-    // The graph is now rendered lazily, so we don't render it here on every update.
-    // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
-    //     renderGraph(project, cpm);
-    // }
+    if ($('.tab[data-tab="graph"]').classList.contains('active')) {
+      renderGraph(project, cpm);
+    }
     renderFocus(project, cpm);
     renderIssues(project, cpm);
     renderContextPanel(LAST_SEL);

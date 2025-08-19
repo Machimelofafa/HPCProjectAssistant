@@ -849,17 +849,16 @@ function renderGraph(project, cpm){
         metaText.textContent = `${esc(t.phase||'')} • ${esc(String(t.duration))}d • slack ${esc(String(t.slack))}`;
         node.appendChild(metaText);
 
-        node.addEventListener('click', (ev)=>{
-          if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-            toggleSelect(t.id);
-          } else {
-            selectOnly(t.id);
-          }
-          refresh();
-        });
-        g.appendChild(node);
-    }
-}
+          node.addEventListener('click', (ev)=>{
+            if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+              toggleSelect(t.id);
+            } else {
+              selectOnly(t.id);
+            }
+          });
+          g.appendChild(node);
+      }
+  }
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
@@ -970,16 +969,15 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     }
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-    bar.addEventListener('click', (ev)=>{
-      if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-        toggleSelect(t.id);
-      } else {
-        selectOnly(t.id);
-      }
-      refresh();
-    });
-    bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
-    g.appendChild(bar); y+=rowH; });
+      bar.addEventListener('click', (ev)=>{
+        if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
+          toggleSelect(t.id);
+        } else {
+          selectOnly(t.id);
+        }
+      });
+      bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+      g.appendChild(bar); y+=rowH; });
 
   // drag
   let drag = null;
@@ -1506,6 +1504,15 @@ function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header
 // ------------------------------------------------------------------------------------
 const SEL=new Set();
 let LAST_SEL=null;
+const debouncedRefresh = debounce(refresh, 50);
+function updateSelectionUI(){
+  document.querySelectorAll('.bar, .node').forEach(el=>{
+    const id=el.getAttribute('data-id');
+    el.classList.toggle('selected', SEL.has(id));
+  });
+  renderContextPanel(LAST_SEL);
+  updateSelBadge();
+}
 function toggleSelect(id){
   if(SEL.has(id)){
     SEL.delete(id);
@@ -1514,13 +1521,15 @@ function toggleSelect(id){
     SEL.add(id);
     LAST_SEL=id;
   }
-  updateSelBadge();
+  updateSelectionUI();
+  debouncedRefresh();
 }
 function selectOnly(id){
   SEL.clear();
   SEL.add(id);
   LAST_SEL=id;
-  updateSelBadge();
+  updateSelectionUI();
+  debouncedRefresh();
 }
 function moveSelection(dir){
   const tasks=SM.get().tasks.filter(matchesFilters);
@@ -1529,7 +1538,6 @@ function moveSelection(dir){
   if(idx===-1) idx = dir>0?0:tasks.length-1;
   else idx=(idx+dir+tasks.length)%tasks.length;
   selectOnly(tasks[idx].id);
-  refresh();
 }
 function deleteSelected(){
   if(!SEL.size) return;
@@ -1589,7 +1597,7 @@ function duplicateSelected(){
   showToast(`Duplicated ${clones.length} task${clones.length>1?'s':''}`);
   refresh();
 }
-function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelBadge(); }
+  function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelectionUI(); debouncedRefresh(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
   for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
     const dur=parseDurationStrict(t.duration).days||0;
@@ -1603,13 +1611,12 @@ function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.
   }
   box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
 }
-function updateSelBadge(){
-  $('#selBadge').textContent = `${SEL.size} selected`;
-  $('#bulkCount').textContent=String(SEL.size);
-  $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
-  renderInlineEditor();
-  renderContextPanel(LAST_SEL);
-}
+  function updateSelBadge(){
+    $('#selBadge').textContent = `${SEL.size} selected`;
+    $('#bulkCount').textContent=String(SEL.size);
+    $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
+    renderInlineEditor();
+  }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
     const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDurationStrict(t.duration).days + n); }

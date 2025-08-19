@@ -1869,8 +1869,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
       }
     })();
 
-    setupLegend();
     setupTopToolbar();
+    setupLegend();
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
     if (saved) {

@@ -170,7 +170,15 @@ function ddmmyyyy_to_yyyymmdd(s) { if (!s) return ''; const [d,m,y] = s.split('-
 function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
 function daysBetween(a,b){ return Math.round((b-a)/86400000); }
-function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function esc(s){
+  return String(s ?? '').replace(/['"&<>]/g, c => ({
+    "'": '&#39;',
+    '"': '&quot;',
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;'
+  }[c]));
+}
 function uid(prefix='t'){ return prefix+'_'+Math.random().toString(36).slice(2,8); }
 function slug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }

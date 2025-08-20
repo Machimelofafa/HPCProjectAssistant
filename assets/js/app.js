@@ -2532,6 +2532,9 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     if(!btn || !menu) return;
     const getItems=()=>Array.from(menu.querySelectorAll('button, [href], input, select, textarea'));
     function openMenu(){
+      if(buttonId==='btn-edit-selected'){
+        renderInlineEditor();
+      }
       menu.style.display='block';
       setTimeout(()=>{ menu.classList.add('open'); btn.setAttribute('aria-expanded','true'); getItems()[0]?.focus(); },10);
     }

@@ -398,7 +398,7 @@ const SM=(function(){
     updateUndoUI();
   }
   function setProjectProps(props, opts={}){ const cur=get(); Object.assign(cur, props); set(cur, opts); }
-  function addTasks(list, opts={}){ const cur=get(); const ids=new Set(cur.tasks.map(t=>t.id)); const add=list.map(t=>{ let id=t.id||uid('t'); while(ids.has(id)) id=uid('t'); ids.add(id); return {...t, id}; }); cur.tasks=cur.tasks.concat(add); set(cur, opts); }
+  function addTasks(list, opts={}){ const cur=get(); const ids=new Set(cur.tasks.map(t=>String(t.id))); const add=list.map(t=>{ let id=String(t.id||uid('t')); while(ids.has(id)) id=String(uid('t')); ids.add(id); return {...t, id}; }); cur.tasks=cur.tasks.concat(add); set(cur, opts); }
   function replaceTasks(tasks, opts={}){ const cur=get(); cur.tasks=tasks; set(cur, opts); }
   function updateTask(id, patch, opts={}){ const cur=get(); const i=cur.tasks.findIndex(t=>t.id===id); if(i<0) return; cur.tasks=cur.tasks.slice(); cur.tasks[i]={...cur.tasks[i], ...patch}; set(cur,{sourceIds:[id], ...opts}); }
   function onChange(fn){ listeners.push(fn); }
@@ -1599,7 +1599,7 @@ function duplicateSelected(){
 }
   function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelectionUI(); debouncedRefresh(); }
 function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
-  for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
+  for(const id of SEL){ const t=s.tasks.find(x=>String(x.id)===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
     const dur=parseDurationStrict(t.duration).days||0;
     row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
       <input type="number" min="0" data-id="${id}" data-field="duration" value="${dur}">
@@ -2178,7 +2178,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 // ----------------------------[ DATA TEMPLATES ]----------------------------
 // Predefined project templates for various use cases (HPC, Software, Hardware).
 // ------------------------------------------------------------------------------
-function ensureIds(list){ return list.map(t=>({...t, id:t.id||uid('t'), active: t.active!==false})); }
+function ensureIds(list){ return list.map(t=>({...t, id: String(t.id||uid('t')), active: t.active!==false})); }
 function w(n){ return n*5; } function d(n){ return n; }
 function templateHPC(){ return ensureIds([
   {id:'mobo_assembly', name:'Carte mère assemblée (PCB+ASM)', duration:w(1), subsystem:'System', phase:'EVT L1'},

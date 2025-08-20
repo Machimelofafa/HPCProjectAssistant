@@ -2522,6 +2522,10 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     });
   });
 
+  document.getElementById('btn-edit-selected')?.addEventListener('click', () => {
+    renderInlineEditor();
+  });
+
 })();
 
 (function(){

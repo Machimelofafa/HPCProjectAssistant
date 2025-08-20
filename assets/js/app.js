@@ -1409,6 +1409,30 @@ function renderContextPanel(selectedId) {
   });
 }
 
+function renderTasksTable(project, cpm){
+  const tbody = $('#tasksTable tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  if(!cpm) return;
+  for(const t of cpm.tasks){
+    const dur = parseDurationStrict(t.duration).days || 0;
+    const deps = normalizeDeps(t).map(d=>d.pred).join(', ');
+    const critical = t.critical || t.slack === 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(t.id)}</td>
+      <td>${esc(t.name||'')}</td>
+      <td>${dur}</td>
+      <td>${esc(deps)}</td>
+      <td>${esc(t.subsystem||'')}</td>
+      <td>${esc(t.phase||'')}</td>
+      <td>${t.pct != null ? esc(String(t.pct)) : ''}</td>
+      <td>${critical? '✓' : ''}</td>
+      <td>${dur===0? '✓' : ''}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
 // ----------------------------[ SCENARIO MANAGEMENT ]----------------------------
 // Handles creating, switching, and comparing different project scenarios.
 // -------------------------------------------------------------------------------
@@ -1681,13 +1705,15 @@ function renderAll(project, cpm) {
     // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
     //     renderGraph(project, cpm);
     // }
-    renderFocus(project, cpm);
-    renderIssues(project, cpm);
-    renderContextPanel(LAST_SEL);
-    $('#boot').style.display='none';
-    $('#appRoot').style.display='grid';
-    if($('.tab.active').dataset.tab==='compare') buildCompare();
-}
+      renderFocus(project, cpm);
+      renderIssues(project, cpm);
+      renderContextPanel(LAST_SEL);
+      $('#boot').style.display='none';
+      $('#appRoot').style.display='grid';
+      const activeTab = $('.tab.active').dataset.tab;
+      if(activeTab==='compare') buildCompare();
+      if(activeTab==='tasks') renderTasksTable(project, cpm);
+  }
 
 function refresh(){
     triggerCPM(SM.get());
@@ -1798,12 +1824,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
     SM.onChange(()=>{ $('#btnUndo').disabled=!SM.canUndo(); $('#btnRedo').disabled=!SM.canRedo(); updateSelBadge(); });
 
     // tabs
-    $$('.tab').forEach(t=> t.onclick=()=>{
-        $$('.tab').forEach(x=>x.classList.remove('active'));
-        t.classList.add('active');
-        $$('.view').forEach(v=>v.classList.remove('active'));
-        const viewId = t.dataset.tab;
-        $('#'+viewId).classList.add('active');
+      $$('.tab').forEach(t=> t.onclick=()=>{
+          $$('.tab').forEach(x=>x.classList.remove('active'));
+          t.classList.add('active');
+          $$('.view').forEach(v=>v.classList.remove('active'));
+          const viewId = t.dataset.tab;
+          $('#'+viewId).classList.add('active');
 
         if (viewId === 'graph' && !graphInitialized) {
             if (lastCPMResult) {
@@ -1815,10 +1841,13 @@ window.addEventListener('DOMContentLoaded', ()=>{
             }
         }
 
-        if(viewId==='compare') {
-            buildCompare();
-        }
-    });
+          if(viewId==='compare') {
+              buildCompare();
+          }
+          if(viewId==='tasks') {
+              renderTasksTable(SM.get(), lastCPMResult);
+          }
+      });
 
     // controls
     $('#slackThreshold').onchange = ()=>{ SettingsStore.set({slackThreshold: parseInt($('#slackThreshold').value,10)||0}); refresh(); };

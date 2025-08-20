@@ -1287,6 +1287,21 @@ function renderIssues(project, cpm, targetSel) {
     }
 }
 
+function renderTaskTable(project, cpm){
+  const body=$('#taskTableBody');
+  if(!body) return;
+  body.innerHTML='';
+  if(!cpm) return;
+  const tasks=cpm.tasks.filter(matchesFilters);
+  for(const t of tasks){
+    const row=document.createElement('tr');
+    const dur=parseDurationStrict(t.duration).days||0;
+    const deps=(t.deps||[]).map(esc).join(', ');
+    row.innerHTML=`<td>${esc(t.id)}</td><td>${esc(t.name)}</td><td>${dur}</td><td>${deps}</td><td>${esc(t.subsystem||'')}</td><td>${esc(t.phase||'')}</td><td>${t.pct||0}</td><td>${t.critical?'✓':''}</td><td>${dur===0?'✓':''}</td>`;
+    body.appendChild(row);
+  }
+}
+
 function renderContextPanel(selectedId) {
   const sidePanel = $('#side');
   if (!selectedId) {
@@ -1687,6 +1702,7 @@ function renderAll(project, cpm) {
     $('#boot').style.display='none';
     $('#appRoot').style.display='grid';
     if($('.tab.active').dataset.tab==='compare') buildCompare();
+    if($('.tab.active').dataset.tab==='tasks') renderTaskTable(project, cpm);
 }
 
 function refresh(){
@@ -1817,6 +1833,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
         if(viewId==='compare') {
             buildCompare();
+        }
+        if(viewId==='tasks') {
+            renderTaskTable(SM.get(), lastCPMResult);
         }
     });
 

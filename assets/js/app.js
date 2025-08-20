@@ -1611,6 +1611,7 @@ function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.
   }
   box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
 }
+window.renderInlineEditor = renderInlineEditor;
   function updateSelBadge(){
     $('#selBadge').textContent = `${SEL.size} selected`;
     $('#bulkCount').textContent=String(SEL.size);
@@ -2526,12 +2527,13 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
 
 (function(){
   'use strict';
-  function setupDropdown(buttonId, menuId){
+  function setupDropdown(buttonId, menuId, onOpen){
     const btn=document.getElementById(buttonId);
     const menu=document.getElementById(menuId);
     if(!btn || !menu) return;
     const getItems=()=>Array.from(menu.querySelectorAll('button, [href], input, select, textarea'));
     function openMenu(){
+      onOpen && onOpen();
       menu.style.display='block';
       setTimeout(()=>{ menu.classList.add('open'); btn.setAttribute('aria-expanded','true'); getItems()[0]?.focus(); },10);
     }
@@ -2547,7 +2549,7 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
   setupDropdown('btn-project-calendar','menu-project-calendar');
   setupDropdown('btn-filter-group','menu-filter-group');
   setupDropdown('btn-subsystem-legend','menu-subsystem-legend');
-  setupDropdown('btn-edit-selected','menu-edit-selected');
+  setupDropdown('btn-edit-selected','menu-edit-selected', renderInlineEditor);
   setupDropdown('btn-bulk-edit','menu-bulk-edit');
   setupDropdown('btn-template','menu-template');
   setupDropdown('btn-validation','menu-validation');

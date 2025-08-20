@@ -1498,6 +1498,24 @@ function buildCompare(){
   });
 }
 
+function buildTasksTable(){
+  const tbody = document.querySelector('#tasksTable tbody');
+  if(!tbody) return;
+  tbody.innerHTML='';
+  const tasks = SM.get().tasks || [];
+  const cpmMap = lastCPMResult ? Object.fromEntries(lastCPMResult.tasks.map(t=>[t.id,t])) : {};
+  for(const t of tasks){
+    if(t.active===false) continue;
+    const dur = parseDurationStrict(t.duration).days || 0;
+    const deps = (t.deps||[]).join(' ');
+    const crit = cpmMap[t.id]?.critical ? 'Yes' : '';
+    const milestone = dur===0 ? 'Yes' : '';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(t.id)}</td><td>${esc(t.name)}</td><td>${dur}</td><td>${esc(deps)}</td><td>${esc(t.subsystem||'')}</td><td>${esc(t.phase||'')}</td><td>${t.pct||0}</td><td>${crit}</td><td>${milestone}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
 
 // ----------------------------[ DATA IMPORT/EXPORT ]----------------------------
 // Functions for handling file I/O, including saving/loading projects and CSV export.
@@ -1817,6 +1835,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
         if(viewId==='compare') {
             buildCompare();
+        }
+        if (viewId === 'tasks') {
+            buildTasksTable();
         }
     });
 

@@ -359,6 +359,10 @@
             <div class="tab" data-tab="graph" role="tab" aria-selected="false" aria-controls="graph">Dependency Graph</div>
             <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
             <div class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare">Compare</div>
+            <div class="tab" data-tab="tasks" role="tab"
+                 aria-selected="false" aria-controls="tasks">
+              Tasks table
+            </div>
             <div class="view-controls" style="margin-left: auto; display: flex; align-items: center; gap: var(--spacing-md);">
                 <span style="margin-left:.5rem">Graph</span>
                 <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
@@ -443,6 +447,22 @@
             <h3>Task deltas (start / finish / slack)</h3>
             <div class="list" id="cmpList"></div>
             </div>
+        </section>
+        <section id="tasks" class="view"
+                 role="tabpanel"
+                 aria-label="Project tasks table view"
+                 aria-live="polite"
+                 tabindex="0">
+          <table class="table" id="tasksTable">
+            <thead>
+              <tr>
+                <th scope="col">Id</th><th scope="col">Name</th><th scope="col">Duration</th><th scope="col">Deps</th>
+                <th scope="col">Subsystem</th><th scope="col">Phase</th><th scope="col">%</th>
+                <th scope="col">Critical</th><th scope="col">Milestone</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </section>
         </main>
     </section>

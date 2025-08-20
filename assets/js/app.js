@@ -1287,6 +1287,23 @@ function renderIssues(project, cpm, targetSel) {
     }
 }
 
+function renderTasksTable(project, cpm){
+  const table = $('#tasksTable');
+  if(!table) return;
+  const tbody = table.querySelector('tbody');
+  if(!tbody) return;
+  const cpmMap = cpm ? Object.fromEntries((cpm.tasks||[]).map(t=>[t.id,t])) : {};
+  tbody.innerHTML='';
+  for(const t of project.tasks){
+    const c = cpmMap[t.id]||{};
+    const dur = parseDurationStrict(t.duration).days||0;
+    const isMilestone = dur===0;
+    const row=document.createElement('tr');
+    row.innerHTML=`<td>${esc(t.id)}</td><td>${esc(t.name)}</td><td>${dur}</td><td>${esc((t.deps||[]).join(' '))}</td><td>${esc(t.subsystem||'')}</td><td>${esc(t.phase||'')}</td><td>${t.pct||0}</td><td>${c.critical?'Yes':'No'}</td><td>${isMilestone?'Yes':'No'}</td>`;
+    tbody.appendChild(row);
+  }
+}
+
 function renderContextPanel(selectedId) {
   const sidePanel = $('#side');
   if (!selectedId) {
@@ -1683,6 +1700,7 @@ function renderAll(project, cpm) {
     // }
     renderFocus(project, cpm);
     renderIssues(project, cpm);
+    renderTasksTable(project, cpm);
     renderContextPanel(LAST_SEL);
     $('#boot').style.display='none';
     $('#appRoot').style.display='grid';
@@ -1817,6 +1835,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
         if(viewId==='compare') {
             buildCompare();
+        }
+        if(viewId==='tasks') {
+            renderTasksTable(SM.get(), lastCPMResult);
         }
     });
 

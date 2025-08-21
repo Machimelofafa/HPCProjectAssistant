@@ -470,7 +470,7 @@ const WarningEngine = (function() {
   return { run };
 })();
 
-// The computeCPM function is now in the worker.
+// The computeCPM function lives in assets/js/core/cpm.js and is shared with the worker.
 
 // ----------------------------[ ISSUE VALIDATION ENGINE ]----------------------------
 // Rule-based engine to collect validation issues, warnings, and errors in the project.

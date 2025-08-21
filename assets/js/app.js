@@ -1829,6 +1829,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
         const viewId = t.dataset.tab;
         $('#'+viewId).classList.add('active');
 
+        document.querySelectorAll('.action-menu.open').forEach(menu=>{
+            menu.classList.remove('open');
+            menu.style.display = 'none';
+        });
+        if(document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+
         if (viewId === 'graph' && !graphInitialized) {
             if (lastCPMResult) {
                 renderGraph(SM.get(), lastCPMResult);

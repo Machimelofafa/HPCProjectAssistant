@@ -1823,6 +1823,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
     // tabs
     $$('.tab').forEach(t=> t.onclick=()=>{
+        const closeOpenDropdowns = () => {
+            $$('.action-menu.open').forEach(menu => {
+                menu.classList.remove('open');
+                menu.style.display = 'none';
+            });
+            $$('[aria-expanded="true"]').forEach(btn => {
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        };
+
+        closeOpenDropdowns();
         $$('.tab').forEach(x=>x.classList.remove('active'));
         t.classList.add('active');
         $$('.view').forEach(v=>v.classList.remove('active'));

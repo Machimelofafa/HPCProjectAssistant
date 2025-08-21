@@ -37,19 +37,6 @@ function createCPMWorker(){
 // ---------------------------------------------------------------------
 const $ = (q,el=document)=>el.querySelector(q); const $$=(q,el=document)=>Array.from(el.querySelectorAll(q));
 const todayStr = ()=> { const d = new Date(); return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); };
-function parseDate(s){
-  const [d,m,y] = String(s||'').split('-').map(n=>parseInt(n,10));
-  if(!d || !m || !y) return null;
-  const dt = new Date(y, m-1, d);
-  if(dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) return null;
-  return dt;
-}
-function fmtDate(d){ return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); }
-function yyyymmdd_to_ddmmyyyy(s) { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}-${m}-${y}`; }
-function ddmmyyyy_to_yyyymmdd(s) { if (!s) return ''; const [d,m,y] = s.split('-'); return `${y}-${m}-${d}`; }
-function addDays(date, n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
-function isWeekend(d){ const x=d.getDay(); return x===0||x===6; }
-function daysBetween(a,b){ return Math.round((b-a)/86400000); }
 function esc(s){
   return String(s ?? '').replace(/['"&<>]/g, c => ({
     "'": '&#39;',
@@ -157,20 +144,6 @@ document.addEventListener('click', hideContextMenu);
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
 // Functions for parsing and validating specific data formats like duration and dependencies.
 // ------------------------------------------------------------------------------------
-function parseDurationStrict(v){
-  if(typeof v==='number'){
-    if(!Number.isInteger(v) || v<0) return {error:'Duration must be a non‑negative integer (days).'};
-    return {days:v};
-  }
-  const s=String(v||'').trim();
-  if(s==='') return {error:'Duration is required.'};
-  const m=s.match(/^(\d+)\s*([dw])?$/i);
-  if(!m) return {error:'Use number of days or Nd/Nw (e.g., 10 or 3w).'};
-  const n=parseInt(m[1],10); const u=(m[2]||'d').toLowerCase();
-  if(n<0) return {error:'Duration cannot be negative.'};
-  const days = u==='w'? n*5 : n;
-  return {days};
-}
 
 function validateProject(project) {
   const errors = [];
@@ -239,35 +212,7 @@ function validateProject(project) {
   return { ok, errors, warnings, project, migrated };
 }
 
-// ----------------------------[ CALENDAR LOGIC ]----------------------------
-// Handles date calculations, respecting working days, weekends, and holidays.
-// --------------------------------------------------------------------------
-function makeCalendar(mode, holidaysSet){
-  const isHoliday = d=> holidaysSet.has(fmtDate(d));
-  function isWorkday(d){ return mode==='calendar'? true : (!isWeekend(d) && !isHoliday(d)); }
-  function addBusinessDays(start, n){ let d=new Date(start); let step=n>=0?1:-1; let count=0; while(count!==n){ d.setDate(d.getDate()+step); if(isWorkday(d)) count+=step; } return d; }
-  function diffBusinessDays(start, end){ let d=new Date(start); let n=0; const step=start<end?1:-1; while((step>0? d<end : d>end)){ d.setDate(d.getDate()+step); if(isWorkday(d)) n+=step; } return n; }
-  return {
-    mode,
-    isWorkday,
-    add:(start,n)=> mode==='calendar'? addDays(start,n): addBusinessDays(start,n),
-    diff:(start,end)=> mode==='calendar'? daysBetween(start,end): diffBusinessDays(start,end)
-  };
-}
-
 // ---------------------------- dependency parser ----------------------------
-function parseDepToken(token){
-  const s=String(token||'').trim(); if(!s) return null;
-  let type='FS'; let rest=s; const colon=s.indexOf(':');
-  if(colon>0){ const t=s.slice(0,colon).toUpperCase(); if(['FS','SS','FF','SF'].includes(t)){ type=t; rest=s.slice(colon+1); } }
-  let pred=rest; let lag=0;
-  const m = rest.match(/^(.*?)([+-])(\d+)([dw])?$/i);
-  if(m){ pred=m[1]; const sign=m[2]==='-'?-1:1; const n=parseInt(m[3],10); const u=(m[4]||'d').toLowerCase(); lag = sign * (u==='w'? n*5 : n); }
-  pred=pred.trim();
-  return {type, pred, lag};
-}
-function stringifyDep(e){ const lagStr = e.lag? ((e.lag>0?'+':'')+Math.round(e.lag)+'d') : ''; return (e.type==='FS' && !lagStr? e.pred : `${e.type}:${e.pred}${lagStr}`); }
-function normalizeDeps(task){ const raw=task.deps||[]; const arr=[]; for(const tok of raw){ const p=parseDepToken(tok); if(!p) continue; arr.push(p); } return arr; }
 function adjustIncomingLags(task, delta){ const out=[]; for(const tok of (task.deps||[])){ const e=parseDepToken(tok); if(!e){ out.push(tok); continue; } if(e.type==='FS'||e.type==='SS'){ e.lag=(e.lag|0)+delta; out.push(stringifyDep(e)); } else { out.push(tok); } } return out; }
 
 // ----------------------------[ STATE MANAGEMENT ]----------------------------
@@ -402,7 +347,7 @@ const WarningEngine = (function() {
                 fix: () => { SM.updateTask(t.id, { name: `Task ${t.id}` }, { name: 'Assign Missing Name' }); }
             });
         }
-        const pd = parseDurationStrict(t.duration);
+        const pd = parseDuration(t.duration);
         if (pd.error) {
             push('error', `Invalid duration: ${pd.error}`, { taskId: t.id,
                 fix: () => { SM.updateTask(t.id, { duration: 1 }, { name: 'Fix Invalid Duration' }); }
@@ -483,7 +428,7 @@ const WarningEngine = (function() {
                   });
               }
           }
-          const dur = parseDurationStrict(cur.duration).days || 0;
+          const dur = parseDuration(cur.duration).days || 0;
           const isMilestone = String(cur.name || '').toLowerCase().includes('gate') || String(cur.phase || '').toLowerCase().includes('gate');
           if (dur === 0 && !isMilestone) {
               push('info', `Zero-duration task. Consider making it a milestone or setting duration to 1d.`, { taskId: t.id,
@@ -826,12 +771,12 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
     bar.setAttribute('role','listitem');
-    const durVal = parseDurationStrict(t.duration).days || 0;
+    const durVal = parseDuration(t.duration).days || 0;
     const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack ' + t.slack + ' days'}`;
     bar.setAttribute('aria-label', labelText);
     if(SEL.has(t.id)) bar.classList.add('selected');
     const col=colorFor(t.subsystem);
-    const isMilestone=(parseDurationStrict(t.duration).days||0)===0;
+    const isMilestone=(parseDuration(t.duration).days||0)===0;
     if(isMilestone){
       bar.setAttribute('data-ms','1');
       const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
@@ -937,7 +882,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       if (r.type !== 'task') continue;
       const t = r.t;
       const li = document.createElement('li');
-      const durVal = parseDurationStrict(t.duration).days || 0;
+      const durVal = parseDuration(t.duration).days || 0;
       li.innerHTML = `Task: <strong>${esc(t.name)}</strong> (Phase: ${esc(t.phase) || 'N/A'}).
         <span class="duration">Duration: ${durVal} days</span>.
         <span class="slack">Slack: ${t.slack} days</span>.
@@ -951,7 +896,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
 function calcEarliestESFor(project, id, dur){
   const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
   const cur=id2[id]; if(!cur) return 0; let es=0;
-  for(const e of normalizeDeps(cur)){ const p=id2[e.pred]; if(!p) continue; const pd=parseDurationStrict(p.duration).days||0; if(e.type==='FS') es=Math.max(es, (p.ef!=null?p.ef:pd)+e.lag); else if(e.type==='SS') es=Math.max(es, (p.es!=null?p.es:0)+e.lag); else if(e.type==='FF') es=Math.max(es, (p.ef!=null?p.ef:pd)+e.lag - dur); else if(e.type==='SF') es=Math.max(es, (p.es!=null?p.es:0)+e.lag - dur); }
+  for(const e of normalizeDeps(cur)){ const p=id2[e.pred]; if(!p) continue; const pd=parseDuration(p.duration).days||0; if(e.type==='FS') es=Math.max(es, (p.ef!=null?p.ef:pd)+e.lag); else if(e.type==='SS') es=Math.max(es, (p.es!=null?p.es:0)+e.lag); else if(e.type==='FF') es=Math.max(es, (p.ef!=null?p.ef:pd)+e.lag - dur); else if(e.type==='SF') es=Math.max(es, (p.es!=null?p.es:0)+e.lag - dur); }
   if(cur.startConstraint){ const sc=cur.startConstraint; if(sc.type==='SNET' || sc.type==='MSO') es=Math.max(es, sc.day|0); }
   if(cur.fixedStart!=null) es=Math.max(es, cur.fixedStart|0);
   return Math.max(0, Math.round(es));
@@ -1202,7 +1147,7 @@ function renderTaskTable(project, cpm){
   const tasks=cpm.tasks.filter(matchesFilters);
   for(const t of tasks){
     const row=document.createElement('tr');
-    const dur=parseDurationStrict(t.duration).days||0;
+    const dur=parseDuration(t.duration).days||0;
     const deps=(t.deps||[]).map(esc).join(', ');
     row.innerHTML=`<td>${esc(t.id)}</td><td>${esc(t.name)}</td><td>${dur}</td><td>${deps}</td><td>${esc(t.subsystem||'')}</td><td>${esc(t.phase||'')}</td><td>${t.pct||0}</td><td>${t.critical?'✓':''}</td><td>${dur===0?'✓':''}</td>`;
     body.appendChild(row);
@@ -1229,7 +1174,7 @@ function renderContextPanel(selectedId) {
     return;
   }
 
-  const duration = parseDurationStrict(task.duration).days || 0;
+  const duration = parseDuration(task.duration).days || 0;
   const deps = normalizeDeps(task).map(d => stringifyDep(d)).join(', ') || 'None';
   const activeBtnText = task.active !== false ? 'Deactivate' : 'Activate';
 
@@ -1437,8 +1382,8 @@ function buildCompare(){
 // ------------------------------------------------------------------------------------
 async function saveFile(json){ const blob=new Blob([json],{type:'application/json'}); if(window.showSaveFilePicker){ try{ const handle=await showSaveFilePicker({suggestedName:'project.hpc.json', types:[{description:'JSON', accept:{'application/json':['.json']}}]}); const w=await handle.createWritable(); await w.write(blob); await w.close(); return; }catch(e){ console.warn(e);} } const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='project.hpc.json'; a.click(); URL.revokeObjectURL(a.href); }
 async function openFile(){ if(window.showOpenFilePicker){ try{ const [h]=await showOpenFilePicker({types:[{description:'JSON/CSV', accept:{'application/json':['.json'],'text/csv':['.csv']}}]}); const f=await h.getFile(); const txt=await f.text(); return f.name.endsWith('.csv')? csvToProject(txt) : JSON.parse(txt); }catch(e){ console.warn(e);} } return new Promise((res)=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,.csv'; inp.onchange=async()=>{ const f=inp.files[0]; const txt=await f.text(); if(f.name.endsWith('.csv')) res(csvToProject(txt)); else res(JSON.parse(txt)); }; inp.click(); }); }
-function exportCSV(){ const rows=[['id','name','duration(d)','deps','phase','subsystem']]; for(const t of SM.get().tasks){ if(t.active===false) continue; rows.push([t.id,t.name,parseDurationStrict(t.duration).days||0, (t.deps||[]).join(' '), t.phase||'', t.subsystem||''].map(x=>`"${String(x).replaceAll('"','""')}"`)); } const csv=rows.map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='project.csv'; a.click(); URL.revokeObjectURL(a.href); }
-function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header,...rows]=lines; const idx=(k)=> header.split(',').map(s=>s.replace(/\W+/g,'').toLowerCase()).indexOf(k.toLowerCase()); const iId=idx('id'), iName=idx('name'), iDur=idx('durationd'), iDeps=idx('deps'), iPhase=idx('phase'), iSub=idx('subsystem'); const tasks=rows.map(r=>{ const cols=r.match(/\"([^\"]|\"\")*\"|[^,]+/g).map(s=>s.replace(/^\"|\"$/g,'').replaceAll('""','"')); const d=parseDurationStrict(+cols[iDur]||cols[iDur]||''); return { id: cols[iId]||uid('t'), name: cols[iName], duration: d.error? 1 : d.days, deps: (cols[iDeps]||'').split(/[\s;]/).filter(Boolean), phase: cols[iPhase]||'', subsystem: cols[iSub]||'System', active:true }; }); return {startDate: todayStr(), calendar: 'workdays', holidays:[], tasks}; }
+function exportCSV(){ const rows=[['id','name','duration(d)','deps','phase','subsystem']]; for(const t of SM.get().tasks){ if(t.active===false) continue; rows.push([t.id,t.name,parseDuration(t.duration).days||0, (t.deps||[]).join(' '), t.phase||'', t.subsystem||''].map(x=>`"${String(x).replaceAll('"','""')}"`)); } const csv=rows.map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='project.csv'; a.click(); URL.revokeObjectURL(a.href); }
+function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header,...rows]=lines; const idx=(k)=> header.split(',').map(s=>s.replace(/\W+/g,'').toLowerCase()).indexOf(k.toLowerCase()); const iId=idx('id'), iName=idx('name'), iDur=idx('durationd'), iDeps=idx('deps'), iPhase=idx('phase'), iSub=idx('subsystem'); const tasks=rows.map(r=>{ const cols=r.match(/\"([^\"]|\"\")*\"|[^,]+/g).map(s=>s.replace(/^\"|\"$/g,'').replaceAll('""','"')); const d=parseDuration(+cols[iDur]||cols[iDur]||''); return { id: cols[iId]||uid('t'), name: cols[iName], duration: d.error? 1 : d.days, deps: (cols[iDeps]||'').split(/[\s;]/).filter(Boolean), phase: cols[iPhase]||'', subsystem: cols[iSub]||'System', active:true }; }); return {startDate: todayStr(), calendar: 'workdays', holidays:[], tasks}; }
 
 // ----------------------------[ UI: SELECTION & BULK EDIT ]----------------------------
 // Manages task selection, including multi-select and bulk editing operations.
@@ -1547,7 +1492,7 @@ function renderInlineEditor(){
     if(SEL.size===0) return;
     const s=SM.get();
     for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
-      const dur=parseDurationStrict(t.duration).days||0;
+      const dur=parseDuration(t.duration).days||0;
       row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
       <input type="number" min="0" data-id="${id}" data-field="duration" value="${dur}">
       <input type="number" min="0" max="100" data-id="${id}" data-field="pct" value="${t.pct||0}">
@@ -1571,7 +1516,7 @@ window.renderInlineEditor = renderInlineEditor;
   }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
-    const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDurationStrict(t.duration).days + n); }
+    const durV=$('#bulkDur').value; if(durV!==''){ const n=parseInt(durV,10)||0; if($('#bulkDurMode').value==='set') t.duration=n; else t.duration=Math.max(0, parseDuration(t.duration).days + n); }
     const shift=$('#bulkShift').value; if(shift!==''){ const d=parseInt(shift,10)||0; const es = t.es||0; t.startConstraint = {type:'SNET', day: Math.max(0, es + d)}; }
     const pctV=$('#bulkPct').value; if(pctV!==''){ const n=Math.min(100, Math.max(0, parseInt(pctV,10)||0)); t.pct=n; }
   }

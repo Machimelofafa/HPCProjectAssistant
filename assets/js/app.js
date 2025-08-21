@@ -2,6 +2,7 @@
 'use strict';
 
 const SCHEMA_VERSION = '1.0.0';
+const LEFT_GUTTER = 220; // fixed left padding for timeline
 
 /**
  * =============================================================================
@@ -870,8 +871,6 @@ function renderGraph(project, cpm){
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
-  const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
-  const P = Math.min(400, 10 + maxLen * 8.5);
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
   // grouping
   const groups={}; const order=[]; for(const t of tasks){ const k=groupKey(t); if(k==null){ order.push(['', [t]]); continue; } if(!groups[k]) groups[k]=[]; groups[k].push(t); }
@@ -880,7 +879,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const rows=[]; order.forEach(([k,arr])=>{ if(k){ rows.push({type:'group', label:k}); } arr.forEach(t=> rows.push({type:'task', t})); });
   const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
-  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+  const finish=Math.max(10,cpm.finishDays||10);
+  const scale = (x) => LEFT_GUTTER + (W - LEFT_GUTTER - 20) * (x / finish);
+  const scaleInv = (px) => Math.round((px - LEFT_GUTTER) * finish / (W - LEFT_GUTTER - 20));
   const startDate=parseDate(project.startDate); const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -890,7 +891,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
+  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',LEFT_GUTTER-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
@@ -933,7 +934,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     // Add background rectangle for task name readability
     const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
     const nameWidth = Math.max(80, (t.name||'').length * 8.5); // Estimate text width
-    nameBg.setAttribute("x", P - 10 - nameWidth);
+    nameBg.setAttribute("x", LEFT_GUTTER - 10 - nameWidth);
     nameBg.setAttribute("y", y - 4);
     nameBg.setAttribute("width", nameWidth + 4);
     nameBg.setAttribute("height", 24);
@@ -945,7 +946,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
 
     const label=document.createElementNS("http://www.w3.org/2000/svg","text");
     label.setAttribute("class","label");
-    label.setAttribute("x", P - 8);
+    label.setAttribute("x", LEFT_GUTTER - 8);
     label.setAttribute("y", y + 12);
     label.setAttribute("text-anchor","end");
     bar.appendChild(label);
@@ -955,7 +956,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     label.appendChild(titleEl);
 
     const name = t.name || '';
-    const maxCharsPerLine = Math.floor((P - 20) / 8.5);
+    const maxCharsPerLine = Math.floor((LEFT_GUTTER - 20) / 8.5);
 
     if (name.length > maxCharsPerLine) {
         let breakPoint = name.lastIndexOf(' ', maxCharsPerLine);
@@ -968,12 +969,12 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
 
         const tspan1 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
         tspan1.textContent = line1;
-        tspan1.setAttribute("x", P-8);
+        tspan1.setAttribute("x", LEFT_GUTTER-8);
         label.appendChild(tspan1);
 
         const tspan2 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
         tspan2.textContent = line2.length > maxCharsPerLine ? line2.substring(0, maxCharsPerLine - 1) + '…' : line2;
-        tspan2.setAttribute("x", P-8);
+        tspan2.setAttribute("x", LEFT_GUTTER-8);
         tspan2.setAttribute("dy", "1.2em");
         label.appendChild(tspan2);
 
@@ -1029,7 +1030,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       hideHint();
       gg.classList.remove('invalid', 'valid');
     } else {
-      const newX = Math.max(P, drag.x0 + dx);
+      const newX = Math.max(LEFT_GUTTER, drag.x0 + dx);
       rect.setAttribute('x', newX);
       const esCand = scaleInv(newX);
       const cur = cpm.tasks.find(t => t.id === drag.id);
@@ -1061,7 +1062,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const rect = gg.querySelector('rect');
     const x = +rect.getAttribute('x');
     const w = +rect.getAttribute('width');
-    const scaleInv = (px) => Math.round((px - P) * finish / (W - P - 20));
+    const scaleInv = (px) => Math.round((px - LEFT_GUTTER) * finish / (W - LEFT_GUTTER - 20));
     const esNew = scaleInv(x);
     const efNew = scaleInv(x + w);
     const durNew = Math.max(1, efNew - esNew);
@@ -2273,27 +2274,6 @@ function templateLib(which){
 })();
 /* === TIMELINE VISIBILITY ENHANCEMENTS (single-file) === */
 
-/** Measure text length in the SVG coordinate space */
-function measureSvgText(svg, text, font = '14px Inter, system-ui, sans-serif') {
-  const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  probe.setAttribute('x', -9999); probe.setAttribute('y', -9999);
-  probe.style.font = font;
-  probe.textContent = text || '';
-  svg.appendChild(probe);
-  const w = probe.getComputedTextLength();
-  probe.remove();
-  return w;
-}
-
-/** Compute a safe left column (task-name) width P based on current tasks */
-function computeLeftColumnWidth(svg, tasks, min = 140, max = 320, pad = 18) {
-  let maxW = 0;
-  for (const t of tasks) {
-    maxW = Math.max(maxW, measureSvgText(svg, t.name));
-  }
-  return Math.max(min, Math.min(max, Math.ceil(maxW + pad)));
-}
-
 /** Apply ellipsis + title tooltip when a name overflows the chip */
 function fitTaskName(svgTextEl, maxWidth) {
   const full = svgTextEl.getAttribute('data-full') || svgTextEl.textContent;
@@ -2334,21 +2314,14 @@ function enhanceTimelineReadability() {
   const svg = document.getElementById('gantt');
   if (!svg) return;
 
-  // Derive tasks from existing bar groups
-  const tasks = Array.from(svg.querySelectorAll('.gantt .bar')).map(g => ({
-    name: (g.getAttribute('data-name') || g.querySelector('text.label[text-anchor="end"]')?.textContent || '').trim()
-  }));
+  const bars = svg.querySelectorAll('.gantt .bar');
+  if (!bars.length) return;
 
-  if (!tasks.length) return;
+  // Apply fixed left column width
+  svg.style.setProperty('--left-col', LEFT_GUTTER + 'px');
 
-  // 1) Compute P, shift axis & bars if your renderer uses a constant P
-  const P = computeLeftColumnWidth(svg, tasks); // e.g., 140..320
-  // If your renderer uses a constant "P", update it here and re-render if needed.
-  // Otherwise, shift name texts and left chips based on P.
-  svg.style.setProperty('--left-col', P + 'px');
-
-  // 2) Fit task names + chip background
-  svg.querySelectorAll('.gantt .bar').forEach(bar => {
+  // Fit task names + chip background
+  bars.forEach(bar => {
     const nameText = bar.querySelector('text.label[text-anchor="end"], text.taskName');
     const chip = bar.querySelector('rect.taskNameBg');
     if (nameText && chip) {
@@ -2358,10 +2331,10 @@ function enhanceTimelineReadability() {
     }
   });
 
-  // 3) Hide cramped labels inside bars
+  // Hide cramped labels inside bars
   tagNarrowInbarLabels(svg);
 
-  // 4) Re-run on next frame to catch zoom transforms
+  // Re-run on next frame to catch zoom transforms
   requestAnimationFrame(() => tagNarrowInbarLabels(svg));
 }
 

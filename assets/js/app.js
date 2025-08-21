@@ -1821,6 +1821,20 @@ window.addEventListener('DOMContentLoaded', ()=>{
     // reactive
     SM.onChange(()=>{ $('#btnUndo').disabled=!SM.canUndo(); $('#btnRedo').disabled=!SM.canRedo(); updateSelBadge(); });
 
+    function closeAllDropdowns() {
+      if (document.activeElement && document.activeElement.tagName === 'SELECT') {
+        document.activeElement.blur();
+      }
+      $$('.action-menu.open').forEach(menu => {
+        menu.classList.remove('open');
+        menu.style.display = 'none';
+        const btn = document.querySelector(`[aria-controls="${menu.id}"]`) ||
+                    document.getElementById(menu.id.replace('menu-', 'btn-')) ||
+                    menu.previousElementSibling;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
     // tabs
     $$('.tab').forEach(t=> t.onclick=()=>{
         $$('.tab').forEach(x=>x.classList.remove('active'));
@@ -1828,6 +1842,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
         $$('.view').forEach(v=>v.classList.remove('active'));
         const viewId = t.dataset.tab;
         $('#'+viewId).classList.add('active');
+
+        closeAllDropdowns();
 
         if (viewId === 'graph' && !graphInitialized) {
             if (lastCPMResult) {

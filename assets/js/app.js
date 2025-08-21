@@ -194,6 +194,7 @@ const SettingsStore = (function(){
   const state = {
     calendar: { startDate: todayStr(), mode: 'workdays', holidays: [] },
     slackThreshold: 2,
+    timelineUnits: 'months',
     filters: { text: '', groupBy: 'none' },
     subsystemLegend: {},
     legend: true,
@@ -880,7 +881,33 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
   const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
-  const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis'); const ticks=10; for(let i=0;i<=ticks;i++){ const x=scale(i*(finish/ticks)); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = Math.round(i*(finish/ticks))+'d'; gAxis.appendChild(t); } svg.appendChild(gAxis);
+  const cal = makeCalendar(project.calendar, new Set(project.holidays||[]));
+  const start = parseDate(project.startDate);
+  const finishDate = cal.add(start, cpm.finishDays||0);
+  const units = (SettingsStore.get().timelineUnits || 'months');
+  const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const daysShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
+  if(units==='weeks'){
+    let d=new Date(start); d.setDate(d.getDate()+((1-d.getDay()+7)%7));
+    while(d<=finishDate){
+      const diff=cal.diff(start,d);
+      const x=scale(diff);
+      const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l);
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent=`${daysShort[d.getDay()]} ${String(d.getDate()).padStart(2,'0')} ${monthsShort[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t);
+      d.setDate(d.getDate()+7);
+    }
+  } else {
+    let d=new Date(start.getFullYear(), start.getMonth(), 1);
+    while(d<=finishDate){
+      const diff=Math.max(0, cal.diff(start,d));
+      const x=scale(diff);
+      const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l);
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent=`${monthsShort[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t);
+      d.setMonth(d.getMonth()+1);
+    }
+  }
+  svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
@@ -1731,6 +1758,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('#groupBy').value = ss.filters.groupBy;
   $('#calendarMode').value = ss.calendar.mode;
   $('#startDate').value = ss.calendar.startDate;
+  $('#timelineUnits').value = ss.timelineUnits || 'months';
   $('#holidayInput').value = (ss.calendar.holidays || []).join(', ');
   SettingsStore.on('settings:changed', ()=> refresh());
   SettingsStore.on('filters:changed', ()=> refresh());
@@ -1842,6 +1870,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     // controls
     $('#slackThreshold').onchange = ()=>{ SettingsStore.set({slackThreshold: parseInt($('#slackThreshold').value,10)||0}); refresh(); };
     $('#calendarMode').onchange = ()=>{ SM.setProjectProps({calendar: $('#calendarMode').value}, {name: 'Change Calendar'}); SettingsStore.setCalendar({mode: $('#calendarMode').value}); refresh(); };
+    $('#timelineUnits').onchange = ()=>{ SettingsStore.set({timelineUnits: $('#timelineUnits').value}); refresh(); };
     const startDateInput = $('#startDate');
     const startDateError = $('#startDateError');
 

@@ -1829,6 +1829,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
         const viewId = t.dataset.tab;
         $('#'+viewId).classList.add('active');
 
+        // Close any open action menus when switching tabs
+        document.querySelectorAll('.action-menu').forEach(menu => {
+            menu.classList.remove('open');
+            menu.style.display = 'none';
+        });
+        document.querySelectorAll('[aria-haspopup="true"]').forEach(btn => {
+            if(btn.getAttribute('aria-expanded')==='true'){
+                btn.setAttribute('aria-expanded','false');
+            }
+        });
+
         if (viewId === 'graph' && !graphInitialized) {
             if (lastCPMResult) {
                 renderGraph(SM.get(), lastCPMResult);

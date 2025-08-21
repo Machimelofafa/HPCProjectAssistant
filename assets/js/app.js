@@ -1045,19 +1045,18 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
       g.appendChild(bar); y+=rowH; });
 
-  // drag
+  // drag / resize via delegated handlers on the root SVG
   let drag = null;
   svg.onpointerdown = (ev) => {
-    const tgt = ev.target;
-    const gg = tgt.closest('.bar');
-    if (!gg || gg.dataset.ms) return;
-    const id = gg.getAttribute('data-id');
-    const rect = gg.querySelector('rect');
+    const barEl = ev.target.closest('.bar');
+    if (!barEl || barEl.dataset.ms) return;
+    const handle = ev.target.closest('[data-side]');
+    const rect = barEl.querySelector('rect');
     const x0 = +rect.getAttribute('x');
     const w0 = +rect.getAttribute('width');
-    const side = tgt.classList.contains('handle') ? tgt.getAttribute('data-side') : 'move';
-    drag = { id, side, x0, w0, px0: ev.clientX, py0: ev.clientY, moved: false };
-    gg.classList.add('moved');
+    const side = handle ? handle.getAttribute('data-side') : 'move';
+    drag = { id: barEl.getAttribute('data-id'), side, x0, w0, px0: ev.clientX, py0: ev.clientY, moved: false };
+    barEl.classList.add('moved');
   };
   svg.onpointermove = (ev) => {
     if (!drag) return;

@@ -37,7 +37,13 @@ function createCPMWorker(){
 // ---------------------------------------------------------------------
 const $ = (q,el=document)=>el.querySelector(q); const $$=(q,el=document)=>Array.from(el.querySelectorAll(q));
 const todayStr = ()=> { const d = new Date(); return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); };
-function parseDate(s){ const [d,m,y] = s.split('-'); return new Date(`${y}-${m}-${d}T00:00:00`); }
+function parseDate(s){
+  const [d,m,y] = String(s||'').split('-').map(n=>parseInt(n,10));
+  if(!d || !m || !y) return null;
+  const dt = new Date(y, m-1, d);
+  if(dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) return null;
+  return dt;
+}
 function fmtDate(d){ return [d.getDate().toString().padStart(2,'0'), (d.getMonth()+1).toString().padStart(2,'0'), d.getFullYear()].join('-'); }
 function yyyymmdd_to_ddmmyyyy(s) { if (!s) return ''; const [y,m,d] = s.split('-'); return `${d}-${m}-${y}`; }
 function ddmmyyyy_to_yyyymmdd(s) { if (!s) return ''; const [d,m,y] = s.split('-'); return `${y}-${m}-${d}`; }
@@ -805,7 +811,8 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
   const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
-  const startDate=parseDate(project.startDate); const finishDate=cal.add(startDate, finish);
+  const startDate=parseDate(project.startDate); if(!startDate){ showToast('Invalid project start date.'); return; }
+  const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const tickDates=[];
@@ -1024,7 +1031,8 @@ if(timelineRoot){
 function renderFocus(project, cpm){
   $('#countMetric').textContent = String(cpm.tasks.length);
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
-  const finishDate = cal.add(parseDate(project.startDate), cpm.finishDays||0);
+  const startDate=parseDate(project.startDate); if(!startDate){ showToast('Invalid project start date.'); return; }
+  const finishDate = cal.add(startDate, cpm.finishDays||0);
   $('#finishMetric').textContent = fmtDate(finishDate);
   $('#critMetric').textContent = String(cpm.tasks.filter(t=>t.critical).length);
   const th = +($('#slackThreshold').value||0);
@@ -1375,11 +1383,22 @@ function buildCompare(){
   }
   const B=lastCPMResult;
   const calB=makeCalendar(curProj.calendar, new Set(curProj.holidays||[]));
-  const finishB=fmtDate(calB.add(parseDate(curProj.startDate), B.finishDays||0));
+  const startB=parseDate(curProj.startDate);
+  const startA=parseDate(baseProj.startDate);
+  if(!startA || !startB){
+    showToast('Invalid project start date.');
+    $('#cmpFinishA').textContent='—';
+    $('#cmpFinishB').textContent='—';
+    $('#cmpFinishDelta').textContent='—';
+    $('#cmpCritDelta').textContent='—';
+    L.innerHTML='<div class="issue sev-error"><div class="msg">Invalid start date.</div></div>';
+    return;
+  }
+  const finishB=fmtDate(calB.add(startB, B.finishDays||0));
   $('#cmpFinishB').textContent=finishB;
   const A=computeCPM(baseProj); // This is a temporary solution for the baseline
   const calA=makeCalendar(baseProj.calendar, new Set(baseProj.holidays||[]));
-  const finishA=fmtDate(calA.add(parseDate(baseProj.startDate), A.finishDays||0));
+  const finishA=fmtDate(calA.add(startA, A.finishDays||0));
   const delta=(B.finishDays||0)-(A.finishDays||0);
   const critA=new Set(A.tasks.filter(t=>t.critical).map(t=>t.id));
   const critB=new Set(B.tasks.filter(t=>t.critical).map(t=>t.id));
@@ -1591,6 +1610,11 @@ function triggerCPM(project) {
         return;
     }
 
+    if(!parseDate(project.startDate)){
+        showToast('Invalid project start date.');
+        return;
+    }
+
     cpmRequestActive = true;
     const statusBadge = $('#cpmStatusBadge');
     if(statusBadge) setStyle(statusBadge,'display','inline-flex');
@@ -1768,7 +1792,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
 
       const d = parseDate(value);
-      if (!dateRegex.test(value) || fmtDate(d) !== value) {
+      if (!d || !dateRegex.test(value) || fmtDate(d) !== value) {
         startDateError.textContent = 'Invalid date. Please use DD-MM-YYYY format for a valid date.';
         startDateError.style.display = 'block';
         startDateInput.classList.add('error');

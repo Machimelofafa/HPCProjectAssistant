@@ -2,6 +2,7 @@
 'use strict';
 
 const SCHEMA_VERSION = '1.0.0';
+const LEFT_GUTTER = 220;
 
 /**
  * =============================================================================
@@ -870,8 +871,7 @@ function renderGraph(project, cpm){
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
-  const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
-  const P = Math.min(400, 10 + maxLen * 8.5);
+  const P = LEFT_GUTTER;
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
   // grouping
   const groups={}; const order=[]; for(const t of tasks){ const k=groupKey(t); if(k==null){ order.push(['', [t]]); continue; } if(!groups[k]) groups[k]=[]; groups[k].push(t); }

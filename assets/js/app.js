@@ -186,6 +186,32 @@ function deepFreeze(o){ if(o&&typeof o==='object'&&!Object.isFrozen(o)){ Object.
 function debounce(fn, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => fn.apply(this, args), delay); }; }
 window.debounce=debounce;
 
+// ----------------------------[ DOM UTILS ]----------------------------
+// Helper utilities for DOM work, including a requestAnimationFrame batcher.
+// ---------------------------------------------------------------------
+const rafBatch = (() => {
+  const q = new Set();
+  let scheduled = false;
+  function flush(){
+    scheduled = false;
+    const tasks = Array.from(q);
+    q.clear();
+    for(const fn of tasks){ fn(); }
+  }
+  return function(fn){
+    q.add(fn);
+    if(!scheduled){
+      scheduled = true;
+      requestAnimationFrame(flush);
+    }
+  };
+})();
+
+function setText(el, text){ if(el) rafBatch(()=>{ el.textContent = text; }); }
+function setHTML(el, html){ if(el) rafBatch(()=>{ el.innerHTML = html; }); }
+function setStyle(el, prop, val){ if(el) rafBatch(()=>{ el.style[prop] = val; }); }
+function setValue(el, val){ if(el) rafBatch(()=>{ el.value = val; }); }
+
 // ----------------------------[ SETTINGS STORE ]----------------------------
 const UI_FLAGS = { topSettingsToolbar: true };
 window.ui = UI_FLAGS;
@@ -217,11 +243,35 @@ const SettingsStore = (function(){
   return { get: ()=>state, set, setFilters, setCalendar, on };
 })();
 window.SettingsStore = SettingsStore;
-function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; clearTimeout(showToast._h); showToast._h=setTimeout(()=>{ t.style.display='none'; }, 2600); }
-function showHint(x,y,msg){ const h=$('#hint'); h.textContent=msg; h.style.left=(x+12)+'px'; h.style.top=(y+12)+'px'; h.style.display='block'; }
-function hideHint(){ $('#hint').style.display='none'; }
-function showContextMenu(x,y,id){ const m=$('#ctxMenu'); m.dataset.id=id; m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px'; }
-function hideContextMenu(){ $('#ctxMenu').style.display='none'; }
+function showToast(msg){
+  const t=$('#toast');
+  rafBatch(()=>{
+    t.textContent=msg;
+    t.style.display='block';
+  });
+  clearTimeout(showToast._h);
+  showToast._h=setTimeout(()=>{ setStyle(t,'display','none'); }, 2600);
+}
+function showHint(x,y,msg){
+  const h=$('#hint');
+  rafBatch(()=>{
+    h.textContent=msg;
+    h.style.left=(x+12)+'px';
+    h.style.top=(y+12)+'px';
+    h.style.display='block';
+  });
+}
+function hideHint(){ setStyle($('#hint'),'display','none'); }
+function showContextMenu(x,y,id){
+  const m=$('#ctxMenu');
+  rafBatch(()=>{
+    m.dataset.id=id;
+    m.style.display='block';
+    m.style.left=x+'px';
+    m.style.top=y+'px';
+  });
+}
+function hideContextMenu(){ setStyle($('#ctxMenu'),'display','none'); }
 document.addEventListener('click', hideContextMenu);
 
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
@@ -1629,25 +1679,35 @@ function duplicateSelected(){
   refresh();
 }
   function clearSelection(){ SEL.clear(); LAST_SEL=null; updateSelectionUI(); debouncedRefresh(); }
-function renderInlineEditor(){ const box=$('#inlineEdit'); if(!box) return; box.innerHTML=''; if(SEL.size===0) return; const s=SM.get();
-  for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
-    const dur=parseDurationStrict(t.duration).days||0;
-    row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
+function renderInlineEditor(){
+  rafBatch(()=>{
+    const box=$('#inlineEdit');
+    if(!box) return;
+    box.innerHTML='';
+    if(SEL.size===0) return;
+    const s=SM.get();
+    for(const id of SEL){ const t=s.tasks.find(x=>x.id===id); if(!t) continue; const row=document.createElement('div'); row.className='row';
+      const dur=parseDurationStrict(t.duration).days||0;
+      row.innerHTML=`<input type="text" data-id="${id}" data-field="name" value="${esc(t.name)}">
       <input type="number" min="0" data-id="${id}" data-field="duration" value="${dur}">
       <input type="number" min="0" max="100" data-id="${id}" data-field="pct" value="${t.pct||0}">
       <input type="text" data-id="${id}" data-field="phase" value="${esc(t.phase||'')}">
       <select data-id="${id}" data-field="subsystem">${SUBS.map(sub=>`<option${sub===t.subsystem?' selected':''}>${esc(sub)}</option>`).join('')}</select>
       <select data-id="${id}" data-field="active"><option value="true"${t.active!==false?' selected':''}>true</option><option value="false"${t.active===false?' selected':''}>false</option></select>`;
-    box.appendChild(row);
-  }
-  box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
+      box.appendChild(row);
+    }
+    box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
+  });
 }
 window.renderInlineEditor = renderInlineEditor;
   function updateSelBadge(){
-    $('#selBadge').textContent = `${SEL.size} selected`;
-    $('#bulkCount').textContent=String(SEL.size);
-    $('#inlineCount') && ($('#inlineCount').textContent=String(SEL.size));
-    renderInlineEditor();
+    rafBatch(()=>{
+      setText($('#selBadge'), `${SEL.size} selected`);
+      setText($('#bulkCount'), String(SEL.size));
+      const ic = $('#inlineCount');
+      if(ic) setText(ic, String(SEL.size));
+      renderInlineEditor();
+    });
   }
 function applyBulk(){ if(SEL.size===0){ showToast('Select some tasks first'); return; } const s=SM.get(); const ids=new Set(SEL); let changed=0; for(const t of s.tasks){ if(!ids.has(t.id)) continue; changed++; const phase=$('#bulkPhase').value.trim(); if(phase) t.phase=phase; const sub=$('#bulkSub').value; if(sub) t.subsystem=sub; const act=$('#bulkActive').value; if(act!=='') t.active=(act==='true'); const pfx=$('#bulkPrefix').value||''; if(pfx) t.name=pfx+' '+(t.name||''); const addDep=$('#bulkAddDep').value.trim(); if(addDep){ t.deps=(t.deps||[]).concat([addDep]); }
     if($('#bulkClearDeps').checked) t.deps=[];
@@ -1692,36 +1752,40 @@ function triggerCPM(project) {
 
     cpmRequestActive = true;
     const statusBadge = $('#cpmStatusBadge');
-    if(statusBadge) statusBadge.style.display = 'inline-flex';
+    if(statusBadge) setStyle(statusBadge,'display','inline-flex');
 
     cpmWorker.postMessage({ type: 'compute', project: clone(project) });
 }
 
 function renderAll(project, cpm) {
     if (!cpm) return;
-    renderGantt(project, cpm);
-    // The graph is now rendered lazily, so we don't render it here on every update.
-    // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
-    //     renderGraph(project, cpm);
-    // }
-    renderFocus(project, cpm);
-    renderIssues(project, cpm);
-    renderContextPanel(LAST_SEL);
-    $('#boot').style.display='none';
-    $('#appRoot').style.display='grid';
-    if($('.tab.active').dataset.tab==='compare') buildCompare();
-    if($('.tab.active').dataset.tab==='tasks') renderTaskTable(project, cpm);
+    rafBatch(()=>{
+      renderGantt(project, cpm);
+      // The graph is now rendered lazily, so we don't render it here on every update.
+      // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
+      //     renderGraph(project, cpm);
+      // }
+      renderFocus(project, cpm);
+      renderIssues(project, cpm);
+      renderContextPanel(LAST_SEL);
+      setStyle($('#boot'),'display','none');
+      setStyle($('#appRoot'),'display','grid');
+      if($('.tab.active').dataset.tab==='compare') buildCompare();
+      if($('.tab.active').dataset.tab==='tasks') renderTaskTable(project, cpm);
+    });
 }
 
 function refresh(){
-    triggerCPM(SM.get());
+    rafBatch(()=>{ triggerCPM(SM.get()); });
 }
 
 function newProject(){
     SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'});
-    $('#startDate').value=todayStr();
-    $('#calendarMode').value='workdays';
-    $('#holidayInput').value='';
+    rafBatch(()=>{
+      setValue($('#startDate'), todayStr());
+      setValue($('#calendarMode'), 'workdays');
+      setValue($('#holidayInput'), '');
+    });
     clearSelection();
     refresh();
 }
@@ -1730,16 +1794,18 @@ function newProject(){
 // Main entry point of the application. Initializes the UI and sets up event listeners.
 // -------------------------------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', ()=>{
-  if (UI_FLAGS.topSettingsToolbar) {
-    document.body.classList.add('top-toolbar');
-  }
   const ss = SettingsStore.get();
-  $('#slackThreshold').value = ss.slackThreshold;
-  $('#filterText').value = ss.filters.text;
-  $('#groupBy').value = ss.filters.groupBy;
-  $('#calendarMode').value = ss.calendar.mode;
-  $('#startDate').value = ss.calendar.startDate;
-  $('#holidayInput').value = (ss.calendar.holidays || []).join(', ');
+  rafBatch(()=>{
+    if (UI_FLAGS.topSettingsToolbar) {
+      document.body.classList.add('top-toolbar');
+    }
+    setValue($('#slackThreshold'), ss.slackThreshold);
+    setValue($('#filterText'), ss.filters.text);
+    setValue($('#groupBy'), ss.filters.groupBy);
+    setValue($('#calendarMode'), ss.calendar.mode);
+    setValue($('#startDate'), ss.calendar.startDate);
+    setValue($('#holidayInput'), (ss.calendar.holidays || []).join(', '));
+  });
   SettingsStore.on('settings:changed', ()=> refresh());
   SettingsStore.on('filters:changed', ()=> refresh());
   try{
@@ -1750,7 +1816,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
             if (e.data.type === 'result') {
                 cpmRequestActive = false;
                 const statusBadge = $('#cpmStatusBadge');
-                if(statusBadge) statusBadge.style.display = 'none';
+                if(statusBadge) setStyle(statusBadge,'display','none');
 
                 lastCPMResult = e.data.cpm;
                 SM.setCPMWarnings(lastCPMResult.warnings || []);
@@ -1765,8 +1831,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
             cpmRequestActive = false;
             const statusBadge = $('#cpmStatusBadge');
             if(statusBadge) {
-                statusBadge.textContent = 'Error!';
-                statusBadge.style.backgroundColor = 'var(--error)';
+                setText(statusBadge,'Error!');
+                setStyle(statusBadge,'backgroundColor','var(--error)');
             }
         };
     } else {

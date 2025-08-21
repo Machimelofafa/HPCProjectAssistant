@@ -2,6 +2,7 @@
 'use strict';
 
 const SCHEMA_VERSION = '1.0.0';
+const LEFT_GUTTER = 220;
 
 /**
  * =============================================================================
@@ -870,8 +871,7 @@ function renderGraph(project, cpm){
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
-  const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
-  const P = Math.min(400, 10 + maxLen * 8.5);
+  const P = LEFT_GUTTER;
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
   // grouping
   const groups={}; const order=[]; for(const t of tasks){ const k=groupKey(t); if(k==null){ order.push(['', [t]]); continue; } if(!groups[k]) groups[k]=[]; groups[k].push(t); }
@@ -880,7 +880,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const rows=[]; order.forEach(([k,arr])=>{ if(k){ rows.push({type:'group', label:k}); } arr.forEach(t=> rows.push({type:'task', t})); });
   const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
-  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+  const finish=Math.max(10,cpm.finishDays||10); const scale = x => LEFT_GUTTER + (x*(W-LEFT_GUTTER-20))/finish; const scaleInv = px => Math.round((px-LEFT_GUTTER)*finish/(W-LEFT_GUTTER-20));
   const startDate=parseDate(project.startDate); const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1029,7 +1029,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       hideHint();
       gg.classList.remove('invalid', 'valid');
     } else {
-      const newX = Math.max(P, drag.x0 + dx);
+      const newX = Math.max(LEFT_GUTTER, drag.x0 + dx);
       rect.setAttribute('x', newX);
       const esCand = scaleInv(newX);
       const cur = cpm.tasks.find(t => t.id === drag.id);
@@ -1061,7 +1061,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     const rect = gg.querySelector('rect');
     const x = +rect.getAttribute('x');
     const w = +rect.getAttribute('width');
-    const scaleInv = (px) => Math.round((px - P) * finish / (W - P - 20));
     const esNew = scaleInv(x);
     const efNew = scaleInv(x + w);
     const durNew = Math.max(1, efNew - esNew);
@@ -2334,34 +2333,20 @@ function enhanceTimelineReadability() {
   const svg = document.getElementById('gantt');
   if (!svg) return;
 
-  // Derive tasks from existing bar groups
-  const tasks = Array.from(svg.querySelectorAll('.gantt .bar')).map(g => ({
-    name: (g.getAttribute('data-name') || g.querySelector('text.label[text-anchor="end"]')?.textContent || '').trim()
-  }));
+  svg.style.setProperty('--left-col', LEFT_GUTTER + 'px');
 
-  if (!tasks.length) return;
-
-  // 1) Compute P, shift axis & bars if your renderer uses a constant P
-  const P = computeLeftColumnWidth(svg, tasks); // e.g., 140..320
-  // If your renderer uses a constant "P", update it here and re-render if needed.
-  // Otherwise, shift name texts and left chips based on P.
-  svg.style.setProperty('--left-col', P + 'px');
-
-  // 2) Fit task names + chip background
+  // Fit task names + chip background
   svg.querySelectorAll('.gantt .bar').forEach(bar => {
     const nameText = bar.querySelector('text.label[text-anchor="end"], text.taskName');
     const chip = bar.querySelector('rect.taskNameBg');
     if (nameText && chip) {
-      // Max width for text inside the chip (chip width minus padding)
       const chipWidth = Number(chip.getAttribute('width') || 0);
       fitTaskName(nameText, chipWidth - 12);
     }
   });
 
-  // 3) Hide cramped labels inside bars
+  // Hide cramped labels inside bars
   tagNarrowInbarLabels(svg);
-
-  // 4) Re-run on next frame to catch zoom transforms
   requestAnimationFrame(() => tagNarrowInbarLabels(svg));
 }
 

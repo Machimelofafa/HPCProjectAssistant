@@ -1,3 +1,4 @@
+const LEFT_GUTTER = 220;
 (function(){
 'use strict';
 
@@ -870,8 +871,7 @@ function renderGraph(project, cpm){
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
-  const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
-  const P = Math.min(400, 10 + maxLen * 8.5);
+  const P = LEFT_GUTTER;
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
   // grouping
   const groups={}; const order=[]; for(const t of tasks){ const k=groupKey(t); if(k==null){ order.push(['', [t]]); continue; } if(!groups[k]) groups[k]=[]; groups[k].push(t); }
@@ -2273,27 +2273,6 @@ function templateLib(which){
 })();
 /* === TIMELINE VISIBILITY ENHANCEMENTS (single-file) === */
 
-/** Measure text length in the SVG coordinate space */
-function measureSvgText(svg, text, font = '14px Inter, system-ui, sans-serif') {
-  const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  probe.setAttribute('x', -9999); probe.setAttribute('y', -9999);
-  probe.style.font = font;
-  probe.textContent = text || '';
-  svg.appendChild(probe);
-  const w = probe.getComputedTextLength();
-  probe.remove();
-  return w;
-}
-
-/** Compute a safe left column (task-name) width P based on current tasks */
-function computeLeftColumnWidth(svg, tasks, min = 140, max = 320, pad = 18) {
-  let maxW = 0;
-  for (const t of tasks) {
-    maxW = Math.max(maxW, measureSvgText(svg, t.name));
-  }
-  return Math.max(min, Math.min(max, Math.ceil(maxW + pad)));
-}
-
 /** Apply ellipsis + title tooltip when a name overflows the chip */
 function fitTaskName(svgTextEl, maxWidth) {
   const full = svgTextEl.getAttribute('data-full') || svgTextEl.textContent;
@@ -2334,20 +2313,10 @@ function enhanceTimelineReadability() {
   const svg = document.getElementById('gantt');
   if (!svg) return;
 
-  // Derive tasks from existing bar groups
-  const tasks = Array.from(svg.querySelectorAll('.gantt .bar')).map(g => ({
-    name: (g.getAttribute('data-name') || g.querySelector('text.label[text-anchor="end"]')?.textContent || '').trim()
-  }));
+  // Apply fixed left gutter
+  svg.style.setProperty('--left-col', LEFT_GUTTER + 'px');
 
-  if (!tasks.length) return;
-
-  // 1) Compute P, shift axis & bars if your renderer uses a constant P
-  const P = computeLeftColumnWidth(svg, tasks); // e.g., 140..320
-  // If your renderer uses a constant "P", update it here and re-render if needed.
-  // Otherwise, shift name texts and left chips based on P.
-  svg.style.setProperty('--left-col', P + 'px');
-
-  // 2) Fit task names + chip background
+  // Fit task names + chip background
   svg.querySelectorAll('.gantt .bar').forEach(bar => {
     const nameText = bar.querySelector('text.label[text-anchor="end"], text.taskName');
     const chip = bar.querySelector('rect.taskNameBg');
@@ -2358,10 +2327,10 @@ function enhanceTimelineReadability() {
     }
   });
 
-  // 3) Hide cramped labels inside bars
+  // Hide cramped labels inside bars
   tagNarrowInbarLabels(svg);
 
-  // 4) Re-run on next frame to catch zoom transforms
+  // Re-run on next frame to catch zoom transforms
   requestAnimationFrame(() => tagNarrowInbarLabels(svg));
 }
 

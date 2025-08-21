@@ -16,7 +16,6 @@ let cpmWorker;
 let cpmRequestActive = false;
 let lastCPMResult = null;
 let graphInitialized = false;
-let tlAxisUnit = 'months';
 
 function createCPMWorker(){
   const isFile = location.protocol === 'file:';
@@ -886,16 +885,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const tickDates=[];
-  if(tlAxisUnit==='weeks'){
-    let d=new Date(startDate);
-    const day=d.getDay(); const diff=(day===1?0:(day===0?1:8-day));
-    d.setDate(d.getDate()+diff);
-    while(d<=finishDate){ tickDates.push(new Date(d)); d.setDate(d.getDate()+7); }
-  }else{
-    let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
-    while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
-  }
-  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = tlAxisUnit==='weeks'? (`${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`) : (`${MONTHS[d.getMonth()]} ${d.getFullYear()}`); gAxis.appendChild(t); }
+  let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
+  while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
+  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
@@ -1799,16 +1791,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
     })();
 
     setupLegend();
-    const axisSelect = $('#tlAxisUnit');
-    if(axisSelect){
-      axisSelect.value = tlAxisUnit;
-      axisSelect.addEventListener('change', () => {
-        tlAxisUnit = axisSelect.value;
-        refresh();
-        const live = $('#gantt-accessible-summary');
-        if(live){ live.textContent = `Timeline axis unit changed to ${tlAxisUnit}.`; }
-      });
-    }
     // seed with sample HPC flow
     const saved = localStorage.getItem('hpc-project-planner-data');
     if (saved) {

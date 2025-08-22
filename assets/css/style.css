@@ -428,7 +428,7 @@
     display: none;
   }
 
-  /* Enhanced sidebar */
+  /* Context panel */
   aside{
     background: var(--panel);
     border: 1px solid var(--line);
@@ -1696,7 +1696,7 @@
     aside {
       position: static;
       height: auto;
-      max-height: 50vh; /* Allow more space for sidebar on tablet */
+      max-height: 50vh; /* Allow more space for context panel on tablet */
     }
     
     .focus .cards {
@@ -2103,13 +2103,6 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .controls {
-    position: sticky;
-    top: 80px; /* Assuming header height */
-    height: calc(100vh - 100px);
-    overflow-y: auto;
-  }
-
   .row {
     display: flex;
     align-items: center;
@@ -2298,7 +2291,7 @@
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .app-header, .controls, #side {
+    .app-header, #side {
       display: none !important;
     }
     .grid {

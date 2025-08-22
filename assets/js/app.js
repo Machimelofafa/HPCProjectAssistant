@@ -16,7 +16,7 @@ let cpmWorker;
 let cpmRequestActive = false;
 let lastCPMResult = null;
 let graphInitialized = false;
-let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null };
+let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null, id2node: new Map() };
 let drag = null;
 
 function createCPMWorker(){
@@ -685,6 +685,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
+   const id2node=new Map();
   let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -788,8 +789,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         }
       });
       bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+      id2node.set(t.id, { bar, label });
       g.appendChild(bar); y+=rowH; });
-  Object.assign(ganttState, { P, W, finish, cpm, svg });
+  Object.assign(ganttState, { P, W, finish, cpm, svg, id2node });
 
   // Accessible summary
   const summaryContainer = $('#gantt-accessible-summary');
@@ -835,8 +837,9 @@ function onTimelinePointerMove(ev){
   if(!drag) return; const svg=ganttState.svg;
   const dx=ev.clientX-drag.px0, dy=ev.clientY-drag.py0;
   if(!drag.moved){ if(Math.abs(dx)<2&&Math.abs(dy)<2) return; drag.moved=true; svg.setPointerCapture(ev.pointerId); }
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
-  const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1];
+  const gg=ganttState.id2node.get(drag.id)?.bar;
+  if(!gg) return;
+  const rect=gg.querySelector('rect'); const labelNext=gg.querySelector('.duration-label');
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
   if(drag.side==='right'){
     const newW=Math.max(4,drag.w0+dx); rect.setAttribute('width',newW);
@@ -856,7 +859,8 @@ function onTimelinePointerUp(ev){
   if(!drag) return; const svg=ganttState.svg;
   if(svg.hasPointerCapture&&svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
   hideHint();
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
+  const gg=ganttState.id2node.get(drag.id)?.bar;
+  if(!gg){ drag=null; return; }
   if(!drag.moved){ gg.classList.remove('moved','invalid','valid'); drag=null; return; }
   const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width');
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
@@ -1029,7 +1033,7 @@ function renderIssues(project, cpm, targetSel) {
               if (taskId) {
                 selectOnly(taskId);
                 refresh();
-                const bar = document.querySelector(`.bar[data-id="${taskId}"]`);
+                const bar = ganttState.id2node.get(taskId)?.bar;
                 if (bar) {
                   bar.scrollIntoView({behavior: 'smooth', block: 'center'});
                   bar.style.transition = 'outline 0.1s';

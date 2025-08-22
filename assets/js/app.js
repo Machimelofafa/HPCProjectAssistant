@@ -16,8 +16,9 @@ let cpmWorker;
 let cpmRequestActive = false;
 let lastCPMResult = null;
 let graphInitialized = false;
-let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null, id2node: new Map() };
+let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null, id2node: new Map(), g: null };
 let drag = null;
+let pendingPatchIds = new Set();
 
 function createCPMWorker(){
   if (location.protocol === 'file:') {
@@ -214,6 +215,41 @@ function validateProject(project) {
 
 // ---------------------------- dependency parser ----------------------------
 function adjustIncomingLags(task, delta){ const out=[]; for(const tok of (task.deps||[])){ const e=parseDepToken(tok); if(!e){ out.push(tok); continue; } if(e.type==='FS'||e.type==='SS'){ e.lag=(e.lag|0)+delta; out.push(stringifyDep(e)); } else { out.push(tok); } } return out; }
+
+function computeAffectedIds(project, sourceIds){
+  const succ=new Map();
+  for(const t of project.tasks){
+    for(const tok of (t.deps||[])){
+      const d=parseDepToken(tok);
+      if(!d) continue;
+      if(!succ.has(d.pred)) succ.set(d.pred,[]);
+      succ.get(d.pred).push(t.id);
+    }
+  }
+  const res=new Set(sourceIds);
+  const stack=[...sourceIds];
+  while(stack.length){
+    const id=stack.pop();
+    for(const s of succ.get(id)||[]){
+      if(!res.has(s)){
+        res.add(s);
+        stack.push(s);
+      }
+    }
+  }
+  return res;
+}
+
+window.addEventListener('state:changed', e=>{
+  const ids=e.detail?.sourceIds||[];
+  if(ids.length){
+    const proj=SM.get();
+    const aff=computeAffectedIds(proj, ids);
+    aff.forEach(id=>pendingPatchIds.add(id));
+  } else {
+    pendingPatchIds.clear();
+  }
+});
 
 // ----------------------------[ WARNING ENGINE ]----------------------------
 // Scans for potential issues and provides structured warnings.
@@ -663,6 +699,49 @@ function renderGraph(project, cpm){
   }
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
+function createBar(t, y, P, scale){
+  const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
+  const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
+  bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
+  bar.setAttribute('role','listitem');
+  const durVal=parseDuration(t.duration).days||0;
+  const labelText=`${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack '+ t.slack + ' days'}`;
+  bar.setAttribute('aria-label',labelText);
+  if(SEL.has(t.id)) bar.classList.add('selected');
+  const col=colorFor(t.subsystem);
+  const isMilestone=(parseDuration(t.duration).days||0)===0;
+  if(isMilestone){
+    bar.setAttribute('data-ms','1');
+    const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    diamond.setAttribute("x",x-6); diamond.setAttribute("y",y+2); diamond.setAttribute("width",12); diamond.setAttribute("height",12);
+    diamond.setAttribute("transform",`rotate(45 ${x} ${y+8})`);
+    diamond.setAttribute("class","milestone"+(t.critical?' critical':''));
+    diamond.setAttribute("style",`stroke:${col}`);
+    bar.appendChild(diamond);
+  } else {
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
+    bar.appendChild(rect);
+    if(t.critical){ const overlay=document.createElementNS("http://www.w3.org/2000/svg","rect"); overlay.setAttribute('class','overlay'); overlay.setAttribute('x',x); overlay.setAttribute('y',y); overlay.setAttribute('width',w); overlay.setAttribute('height',16); bar.appendChild(overlay); }
+    const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
+    if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
+    const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
+    const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
+  }
+  const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  const nameWidth=Math.max(80,(t.name||'').length*8.5);
+  nameBg.setAttribute("x",P-10-nameWidth); nameBg.setAttribute("y",y-4); nameBg.setAttribute("width",nameWidth+4); nameBg.setAttribute("height",24); nameBg.setAttribute("fill","var(--bg)"); nameBg.setAttribute("rx","4"); nameBg.setAttribute("class","taskNameBg"); nameBg.style.pointerEvents='none'; bar.appendChild(nameBg);
+  const label=document.createElementNS("http://www.w3.org/2000/svg","text");
+  label.setAttribute("class","label"); label.setAttribute("x",P-8); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end"); bar.appendChild(label);
+  const titleEl=document.createElementNS("http://www.w3.org/2000/svg","title"); titleEl.textContent=t.name; label.appendChild(titleEl);
+  const name=t.name||''; const maxCharsPerLine=Math.floor((P-20)/8.5);
+  if(name.length>maxCharsPerLine){ let breakPoint=name.lastIndexOf(' ',maxCharsPerLine); if(breakPoint===-1) breakPoint=maxCharsPerLine; const line1=name.substring(0,breakPoint); const line2=name.substring(breakPoint).trim(); label.setAttribute("y",y+6); const tspan1=document.createElementNS("http://www.w3.org/2000/svg","tspan"); tspan1.textContent=line1; tspan1.setAttribute("x",P-8); label.appendChild(tspan1); const tspan2=document.createElementNS("http://www.w3.org/2000/svg","tspan"); tspan2.textContent=line2.length>maxCharsPerLine? line2.substring(0,maxCharsPerLine-1)+'…' : line2; tspan2.setAttribute("x",P-8); tspan2.setAttribute("dy","1.2em"); label.appendChild(tspan2); nameBg.setAttribute('height','40'); nameBg.setAttribute('y',y-6); } else { label.textContent=name; }
+  const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
+  if(!isMilestone){ if(w>40 || (t.pct||0)>0){ const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
+  bar.addEventListener('click',ev=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); } else { selectOnly(t.id); } });
+  bar.addEventListener('contextmenu',ev=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+  return {bar,label};
+}
 function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
   const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
   const P = Math.min(400, 10 + maxLen * 8.5);
@@ -683,115 +762,16 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
   while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
   for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
-  svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
-   const id2node=new Map();
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
-    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
-    const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
-    bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
-    bar.setAttribute('role','listitem');
-    const durVal = parseDuration(t.duration).days || 0;
-    const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack ' + t.slack + ' days'}`;
-    bar.setAttribute('aria-label', labelText);
-    if(SEL.has(t.id)) bar.classList.add('selected');
-    const col=colorFor(t.subsystem);
-    const isMilestone=(parseDuration(t.duration).days||0)===0;
-    if(isMilestone){
-      bar.setAttribute('data-ms','1');
-      const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      diamond.setAttribute("x",x-6); diamond.setAttribute("y",y+2); diamond.setAttribute("width",12); diamond.setAttribute("height",12);
-      diamond.setAttribute("transform",`rotate(45 ${x} ${y+8})`);
-      diamond.setAttribute("class","milestone"+(t.critical?' critical':''));
-      diamond.setAttribute("style",`stroke:${col}`);
-      bar.appendChild(diamond);
-    }else{
-      const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
-      bar.appendChild(rect);
-
-      // Add overlay for critical tasks for the stripe pattern
-      if (t.critical) {
-        const overlay = document.createElementNS("http://www.w3.org/2000/svg","rect");
-        overlay.setAttribute('class', 'overlay');
-        overlay.setAttribute('x', x);
-        overlay.setAttribute('y', y);
-        overlay.setAttribute('width', w);
-        overlay.setAttribute('height', 16);
-        bar.appendChild(overlay);
-      }
-
-      const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
-      if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
-      const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
-      const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
+  const id2node=new Map();
+  let y=30; rows.forEach((r)=>{
+    if(r.type==='group'){
+      const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect);
+      const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return;
     }
-    // Add background rectangle for task name readability
-    const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
-    const nameWidth = Math.max(80, (t.name||'').length * 8.5); // Estimate text width
-    nameBg.setAttribute("x", P - 10 - nameWidth);
-    nameBg.setAttribute("y", y - 4);
-    nameBg.setAttribute("width", nameWidth + 4);
-    nameBg.setAttribute("height", 24);
-    nameBg.setAttribute("fill", "var(--bg)");
-    nameBg.setAttribute("rx", "4");
-    nameBg.setAttribute("class", "taskNameBg");
-    nameBg.style.pointerEvents = 'none';
-    bar.appendChild(nameBg);
-
-    const label=document.createElementNS("http://www.w3.org/2000/svg","text");
-    label.setAttribute("class","label");
-    label.setAttribute("x", P - 8);
-    label.setAttribute("y", y + 12);
-    label.setAttribute("text-anchor","end");
-    bar.appendChild(label);
-
-    const titleEl = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    titleEl.textContent = t.name;
-    label.appendChild(titleEl);
-
-    const name = t.name || '';
-    const maxCharsPerLine = Math.floor((P - 20) / 8.5);
-
-    if (name.length > maxCharsPerLine) {
-        let breakPoint = name.lastIndexOf(' ', maxCharsPerLine);
-        if (breakPoint === -1) breakPoint = maxCharsPerLine;
-
-        const line1 = name.substring(0, breakPoint);
-        const line2 = name.substring(breakPoint).trim();
-
-        label.setAttribute("y", y + 6); // Adjust y for two lines
-
-        const tspan1 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
-        tspan1.textContent = line1;
-        tspan1.setAttribute("x", P-8);
-        label.appendChild(tspan1);
-
-        const tspan2 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
-        tspan2.textContent = line2.length > maxCharsPerLine ? line2.substring(0, maxCharsPerLine - 1) + '…' : line2;
-        tspan2.setAttribute("x", P-8);
-        tspan2.setAttribute("dy", "1.2em");
-        label.appendChild(tspan2);
-
-        nameBg.setAttribute('height', '40');
-        nameBg.setAttribute('y', y-6);
-
-    } else {
-        label.textContent = name;
-    }
-    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
-    if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
-      bar.addEventListener('click', (ev)=>{
-        if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
-          toggleSelect(t.id);
-        } else {
-          selectOnly(t.id);
-        }
-      });
-      bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
-      id2node.set(t.id, { bar, label });
-      g.appendChild(bar); y+=rowH; });
-  Object.assign(ganttState, { P, W, finish, cpm, svg, id2node });
+    const t=r.t; const {bar,label}=createBar(t,y,P,scale); id2node.set(t.id,{bar,label}); g.appendChild(bar); y+=rowH;
+  });
+  Object.assign(ganttState, { P, W, finish, cpm, svg, id2node, g });
 
   // Accessible summary
   const summaryContainer = $('#gantt-accessible-summary');
@@ -813,6 +793,25 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     summaryContainer.appendChild(list);
   }
 }
+function patchGantt(project, cpm, ids){
+  if(!ganttState.svg) return renderGantt(project,cpm);
+  const P=ganttState.P, W=ganttState.W, finish=ganttState.finish;
+  const scale=(x)=> P + (x*(W-P-20))/finish;
+  for(const id of ids){
+    const t=cpm.tasks.find(x=>x.id===id);
+    const node=ganttState.id2node.get(id);
+    if(!t||!node) continue;
+    const bar=node.bar;
+    let y=0;
+    const r=bar.querySelector('rect')||bar.querySelector('rect.milestone');
+    if(r){ y=parseFloat(r.getAttribute('y'))||0; if(bar.dataset.ms) y-=2; }
+    const {bar:newBar,label}=createBar(t,y,P,scale);
+    ganttState.g.replaceChild(newBar, bar);
+    ganttState.id2node.set(id,{bar:newBar,label});
+  }
+  ganttState.cpm=cpm; ganttState.finish=cpm.finishDays||ganttState.finish;
+}
+
 
 function calcEarliestESFor(project, id, dur){
   const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
@@ -1490,10 +1489,14 @@ function triggerCPM(project) {
     cpmWorker.postMessage({ type: 'compute', project: clone(project) });
 }
 
-function renderAll(project, cpm) {
+function renderAll(project, cpm, affected) {
     if (!cpm) return;
     rafBatch(()=>{
-      renderGantt(project, cpm);
+      if(!ganttState.svg || !affected || affected.size===0 || ganttState.finish!==cpm.finishDays){
+        renderGantt(project, cpm);
+      } else {
+        patchGantt(project, cpm, affected);
+      }
       // The graph is now rendered lazily, so we don't render it here on every update.
       // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
       //     renderGraph(project, cpm);
@@ -1553,9 +1556,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
                 lastCPMResult = e.data.cpm;
                 SM.setCPMWarnings(lastCPMResult.warnings || []);
-
                 const s = SM.get();
-                renderAll(s, lastCPMResult);
+                const affected = pendingPatchIds.size ? new Set(pendingPatchIds) : null;
+                pendingPatchIds.clear();
+                renderAll(s, lastCPMResult, affected);
             }
         };
 

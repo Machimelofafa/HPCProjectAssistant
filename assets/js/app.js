@@ -2352,8 +2352,7 @@ if (typeof _renderGanttOrig === 'function') {
     if (
       isExpanded &&
       !actionMenu.contains(e.target) &&
-      !actionButton.contains(e.target) &&
-      !e.target.closest('.legacy-header')
+      !actionButton.contains(e.target)
     ) {
       closeMenu();
     }
@@ -2446,7 +2445,7 @@ if (typeof _renderGanttOrig === 'function') {
       setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
     }
     btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); }, { passive: true });
-    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target) && !e.target.closest('.legacy-header')) closeMenu(); }, { passive: true });
+    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
     menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
   }
   setupDropdown('btn-project-calendar','menu-project-calendar');

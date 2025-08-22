@@ -50,13 +50,3 @@ The baselines feature allows you to save a snapshot of your project plan and com
 ## Feedback
 
 We welcome your feedback! If you have any suggestions or find any bugs, please [open an issue on our GitHub page](https://github.com/user-repo/job-12-polish-docs/issues).
-
-## Top Settings Toolbar
-
-The project settings sidebar has been moved to a toolbar in the header. A feature flag controls the layout:
-
-```
-window.ui.topSettingsToolbar = true; // default
-```
-
-When `true`, the sidebar is hidden and settings are accessible from the toolbar dropdowns. Add new settings items by editing `index.html` and wiring events in `assets/js/app.js`.

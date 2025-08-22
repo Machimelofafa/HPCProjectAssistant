@@ -18,6 +18,7 @@ let lastCPMResult = null;
 let graphInitialized = false;
 let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null, id2node: new Map() };
 let drag = null;
+let pendingAffectedIds = null;
 
 function createCPMWorker(){
   if (location.protocol === 'file:') {
@@ -214,6 +215,10 @@ function validateProject(project) {
 
 // ---------------------------- dependency parser ----------------------------
 function adjustIncomingLags(task, delta){ const out=[]; for(const tok of (task.deps||[])){ const e=parseDepToken(tok); if(!e){ out.push(tok); continue; } if(e.type==='FS'||e.type==='SS'){ e.lag=(e.lag|0)+delta; out.push(stringifyDep(e)); } else { out.push(tok); } } return out; }
+
+function computeAffected(project, ids){ const succ=new Map(project.tasks.map(t=>[t.id,[]])); for(const t of project.tasks){ for(const e of normalizeDeps(t)){ if(!succ.has(e.pred)) succ.set(e.pred,[]); succ.get(e.pred).push(t.id); } } const out=new Set(ids); const q=[...ids]; while(q.length){ const id=q.shift(); for(const s of (succ.get(id)||[])){ if(!out.has(s)){ out.add(s); q.push(s); } } } return out; }
+
+window.addEventListener('state:changed',e=>{ const src=e.detail?.sourceIds||[]; pendingAffectedIds = src.length? computeAffected(SM.get(), src) : null; });
 
 // ----------------------------[ WARNING ENGINE ]----------------------------
 // Scans for potential issues and provides structured warnings.
@@ -810,8 +815,67 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         Status: ${t.critical ? 'Critical' : 'Not Critical'}.`;
       list.appendChild(li);
     }
-    summaryContainer.appendChild(list);
+  summaryContainer.appendChild(list);
   }
+}
+
+function patchGanttBars(project, cpm, ids){
+  const scale=x=> ganttState.P + (x*(ganttState.W-ganttState.P-20))/ganttState.finish;
+  const id2 = new Map(cpm.tasks.map(t=>[t.id,t]));
+  for(const id of ids){
+    const t = id2.get(id);
+    const node = ganttState.id2node.get(id);
+    if(!t || !node) continue;
+    const bar=node.bar;
+    const col=colorFor(t.subsystem);
+    const isMilestone=(parseDuration(t.duration).days||0)===0;
+    const x=scale(Math.max(0,t.es||0));
+    const w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
+    bar.classList.toggle('critical', !!t.critical);
+    const durVal=parseDuration(t.duration).days||0;
+    const labelText = `${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack '+ t.slack + ' days'}`;
+    bar.setAttribute('aria-label', labelText);
+    if(isMilestone){
+      bar.dataset.ms='1';
+      let diamond=bar.querySelector('.milestone')||bar.querySelector('rect');
+      diamond.setAttribute('x', x-6);
+      diamond.setAttribute('style',`stroke:${col}`);
+      diamond.classList.toggle('critical', !!t.critical);
+      const dur=bar.querySelector('.duration-label');
+      if(dur){ dur.setAttribute('x', x+6); dur.textContent=String(t.duration)+'d'; }
+    }else{
+      bar.removeAttribute('data-ms');
+      const rect=bar.querySelector('rect');
+      rect.setAttribute('x',x);
+      rect.setAttribute('width',w);
+      rect.setAttribute('style',`stroke:${col}`);
+      let overlay=bar.querySelector('.overlay');
+      if(t.critical){
+        if(!overlay){ overlay=document.createElementNS('http://www.w3.org/2000/svg','rect'); overlay.setAttribute('class','overlay'); bar.appendChild(overlay); }
+        overlay.setAttribute('x',x);
+        overlay.setAttribute('y',rect.getAttribute('y'));
+        overlay.setAttribute('width',w);
+        overlay.setAttribute('height',rect.getAttribute('height'));
+      } else if(overlay){ overlay.remove(); }
+      let prog=bar.querySelector('.progress');
+      const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
+      if(progW>0){
+        if(!prog){ prog=document.createElementNS('http://www.w3.org/2000/svg','rect'); prog.setAttribute('class','progress'); bar.appendChild(prog); }
+        prog.setAttribute('x',x);
+        prog.setAttribute('y',rect.getAttribute('y'));
+        prog.setAttribute('width',progW);
+        prog.setAttribute('height',rect.getAttribute('height'));
+        prog.setAttribute('fill',col);
+      } else if(prog){ prog.remove(); }
+      const left=bar.querySelector('[data-side="left"]');
+      const right=bar.querySelector('[data-side="right"]');
+      if(left) left.setAttribute('x',x-3);
+      if(right) right.setAttribute('x',x+w);
+      const dur=bar.querySelector('.duration-label');
+      if(dur){ dur.setAttribute('x', x+w+6); dur.textContent=String(t.duration)+'d'; }
+    }
+  }
+  ganttState.cpm = cpm;
 }
 
 function calcEarliestESFor(project, id, dur){
@@ -1463,7 +1527,8 @@ function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.fo
 function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{2}-\d{2}-\d{4}$/); if(m){ out.push(t); } }
   return out; }
 
-function triggerCPM(project) {
+function triggerCPM(project, affectedIds) {
+    cpmWorker._aff = affectedIds ? new Set(affectedIds) : null;
     if (!cpmWorker) {
         console.error("CPM Worker not initialized.");
         return;
@@ -1490,10 +1555,14 @@ function triggerCPM(project) {
     cpmWorker.postMessage({ type: 'compute', project: clone(project) });
 }
 
-function renderAll(project, cpm) {
+function renderAll(project, cpm, affectedIds) {
     if (!cpm) return;
     rafBatch(()=>{
-      renderGantt(project, cpm);
+      if(affectedIds && ganttState.svg && ganttState.finish === cpm.finishDays){
+        patchGanttBars(project, cpm, affectedIds);
+      } else {
+        renderGantt(project, cpm);
+      }
       // The graph is now rendered lazily, so we don't render it here on every update.
       // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
       //     renderGraph(project, cpm);
@@ -1509,7 +1578,9 @@ function renderAll(project, cpm) {
 }
 
 function refresh(){
-    rafBatch(()=>{ triggerCPM(SM.get()); });
+    const aff = pendingAffectedIds;
+    pendingAffectedIds = null;
+    rafBatch(()=>{ triggerCPM(SM.get(), aff); });
 }
 
 function newProject(){
@@ -1555,7 +1626,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
                 SM.setCPMWarnings(lastCPMResult.warnings || []);
 
                 const s = SM.get();
-                renderAll(s, lastCPMResult);
+                const aff = cpmWorker._aff;
+                cpmWorker._aff = null;
+                renderAll(s, lastCPMResult, aff);
             }
         };
 

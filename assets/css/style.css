@@ -868,6 +868,10 @@
     font-weight: 700;
     dominant-baseline: middle;
     text-rendering: optimizeLegibility;
+    paint-order: stroke fill;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    stroke-linejoin: round;
   }
   
   /* Duration and percentage labels - make them more readable */
@@ -880,13 +884,6 @@
     fill: var(--ink);
   }
   
-  /* Task name background styling */
-  .taskNameBg{
-    opacity: 0.95;
-  }
-  html.dark-mode .taskNameBg {
-    opacity: 1;
-  }
   
   .gantt .handle{
     fill: #94a3b8;
@@ -1988,11 +1985,6 @@
   }
 
   /* High-contrast task name chip + safe ellipsis */
-  .taskNameBg { fill: var(--panel); stroke: var(--line); opacity: 1; }
-  #timeline .gantt text.taskName {
-    font-size: 14px; font-weight: 700; fill: var(--ink);
-  }
-
   /* Inside-bar labels: auto-hide when bar is narrow */
   #timeline .gantt .label.inbar[data-w="narrow"] { display: none; }
   #timeline .gantt .label.inbar[data-kind="duration"] { fill: var(--ink); }

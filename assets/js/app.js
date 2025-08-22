@@ -743,18 +743,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
       const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
       const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
     }
-    // Add background rectangle for task name readability
-    const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
-    const nameWidth = Math.max(80, (t.name||'').length * 8.5); // Estimate text width
-    nameBg.setAttribute("x", P - 10 - nameWidth);
-    nameBg.setAttribute("y", y - 4);
-    nameBg.setAttribute("width", nameWidth + 4);
-    nameBg.setAttribute("height", 24);
-    nameBg.setAttribute("fill", "var(--bg)");
-    nameBg.setAttribute("rx", "4");
-    nameBg.setAttribute("class", "taskNameBg");
-    nameBg.style.pointerEvents = 'none';
-    bar.appendChild(nameBg);
 
     const label=document.createElementNS("http://www.w3.org/2000/svg","text");
     label.setAttribute("class","label");
@@ -789,9 +777,6 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         tspan2.setAttribute("x", P-8);
         tspan2.setAttribute("dy", "1.2em");
         label.appendChild(tspan2);
-
-        nameBg.setAttribute('height', '40');
-        nameBg.setAttribute('y', y-6);
 
     } else {
         label.textContent = name;
@@ -2003,7 +1988,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       let css = '';
       const selectors = [
         '.gantt', '.bar', '.axis', '.label', '.critical', '.milestone',
-        '.progress', '.handle', '.groupHeader', '.groupLabel', '.taskNameBg',
+        '.progress', '.handle', '.groupHeader', '.groupLabel',
         '#timeline', '.stripes-bg', '.stripes-line'
       ];
       for (const sheet of document.styleSheets) {
@@ -2185,7 +2170,7 @@ function computeLeftColumnWidth(svg, tasks, min = 140, max = 320, pad = 18) {
   return Math.max(min, Math.min(max, Math.ceil(maxW + pad)));
 }
 
-/** Apply ellipsis + title tooltip when a name overflows the chip */
+/** Apply ellipsis + title tooltip when a name overflows its allotted space */
 function fitTaskName(svgTextEl, maxWidth) {
   const full = svgTextEl.getAttribute('data-full') || svgTextEl.textContent;
   svgTextEl.setAttribute('data-full', full);
@@ -2235,17 +2220,14 @@ function enhanceTimelineReadability() {
   // 1) Compute P, shift axis & bars if your renderer uses a constant P
   const P = computeLeftColumnWidth(svg, tasks); // e.g., 140..320
   // If your renderer uses a constant "P", update it here and re-render if needed.
-  // Otherwise, shift name texts and left chips based on P.
+  // Otherwise, shift name texts based on P.
   svg.style.setProperty('--left-col', P + 'px');
 
-  // 2) Fit task names + chip background
+  // 2) Fit task names to available space
   svg.querySelectorAll('.gantt .bar').forEach(bar => {
-    const nameText = bar.querySelector('text.label[text-anchor="end"], text.taskName');
-    const chip = bar.querySelector('rect.taskNameBg');
-    if (nameText && chip) {
-      // Max width for text inside the chip (chip width minus padding)
-      const chipWidth = Number(chip.getAttribute('width') || 0);
-      fitTaskName(nameText, chipWidth - 12);
+    const nameText = bar.querySelector('text.label[text-anchor="end"]');
+    if (nameText) {
+      fitTaskName(nameText, P - 12);
     }
   });
 

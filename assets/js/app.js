@@ -1522,7 +1522,7 @@ function newProject(){
 // ----------------------------[ APPLICATION BOOTSTRAP ]----------------------------
 // Main entry point of the application. Initializes the UI and sets up event listeners.
 // -------------------------------------------------------------------------------------
-window.addEventListener('DOMContentLoaded', ()=>{
+window.boot = ()=>{
   const ss = SettingsStore.get();
   rafBatch(()=>{
     if (UI_FLAGS.topSettingsToolbar) {
@@ -2238,9 +2238,10 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
         }
       }
     });
-    observer.observe(bootElement, { attributes: true });
+  observer.observe(bootElement, { attributes: true });
   }
 
+};
 })();
 (function() {
   'use strict';

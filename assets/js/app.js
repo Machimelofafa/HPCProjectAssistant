@@ -140,7 +140,7 @@ function showContextMenu(x,y,id){
   });
 }
 function hideContextMenu(){ setStyle($('#ctxMenu'),'display','none'); }
-document.addEventListener('click', hideContextMenu);
+document.addEventListener('click', hideContextMenu, { passive: true });
 
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
 // Functions for parsing and validating specific data formats like duration and dependencies.
@@ -437,32 +437,48 @@ function InteractionManager(svg, options = {}) {
     let dragging = false;
     let p0 = null;
 
+    let wheelScheduled = false;
+    let lastWheel;
     svg.addEventListener('wheel', (e) => {
         e.preventDefault();
+        lastWheel = {
+            deltaX: e.deltaX,
+            deltaY: e.deltaY,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            offsetX: e.offsetX,
+            offsetY: e.offsetY
+        };
+        if (!wheelScheduled) {
+            wheelScheduled = true;
+            requestAnimationFrame(() => {
+                wheelScheduled = false;
+                const we = lastWheel;
+                if (we.ctrlKey) { // ZOOM
+                    const scale = we.deltaY > 0 ? 1.1 : 0.9;
+                    const mx = we.offsetX;
+                    const my = we.offsetY;
+                    const clientWidth = svg.clientWidth || 1;
+                    const clientHeight = svg.clientHeight || 1;
 
-        if (e.ctrlKey) { // ZOOM
-            const scale = e.deltaY > 0 ? 1.1 : 0.9;
-            const mx = e.offsetX;
-            const my = e.offsetY;
-            const clientWidth = svg.clientWidth || 1;
-            const clientHeight = svg.clientHeight || 1;
+                    const pointX = vb[0] + mx * (vb[2] / clientWidth);
+                    const pointY = vb[1] + my * (vb[3] / clientHeight);
 
-            const pointX = vb[0] + mx * (vb[2] / clientWidth);
-            const pointY = vb[1] + my * (vb[3] / clientHeight);
+                    const newW = vb[2] * scale;
+                    const newH = vb[3] * scale;
 
-            const newW = vb[2] * scale;
-            const newH = vb[3] * scale;
+                    const newX = pointX - mx * (newW / clientWidth);
+                    const newY = pointY - my * (newH / clientHeight);
 
-            const newX = pointX - mx * (newW / clientWidth);
-            const newY = pointY - my * (newH / clientHeight);
-
-            setVB(newX, newY, newW, newH);
-        } else { // PAN
-            const clientWidth = svg.clientWidth || 1;
-            const clientHeight = svg.clientHeight || 1;
-            const panXAmount = (e.shiftKey ? e.deltaY : e.deltaX) * (vb[2] / clientWidth);
-            const panYAmount = (e.shiftKey ? 0 : e.deltaY) * (vb[3] / clientHeight);
-            setVB(vb[0] + panXAmount, vb[1] + panYAmount, vb[2], vb[3]);
+                    setVB(newX, newY, newW, newH);
+                } else { // PAN
+                    const clientWidth = svg.clientWidth || 1;
+                    const clientHeight = svg.clientHeight || 1;
+                    const panXAmount = (we.shiftKey ? we.deltaY : we.deltaX) * (vb[2] / clientWidth);
+                    const panYAmount = (we.shiftKey ? 0 : we.deltaY) * (vb[3] / clientHeight);
+                    setVB(vb[0] + panXAmount, vb[1] + panYAmount, vb[2], vb[3]);
+                }
+            });
         }
     }, { passive: false });
 
@@ -472,7 +488,7 @@ function InteractionManager(svg, options = {}) {
         p0 = { x: e.clientX, y: e.clientY, vb0: [...vb] };
         svg.setPointerCapture(e.pointerId);
         svg.style.cursor = 'grabbing';
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointermove', (e) => {
         if (!dragging) return;
@@ -481,14 +497,14 @@ function InteractionManager(svg, options = {}) {
         const dx = (e.clientX - p0.x) * (vb[2] / clientWidth);
         const dy = (e.clientY - p0.y) * (vb[3] / clientHeight);
         setVB(p0.vb0[0] - dx, p0.vb0[1] - dy, vb[2], vb[3]);
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointerup', (e) => {
         if (!dragging) return;
         dragging = false;
         svg.releasePointerCapture(e.pointerId);
         svg.style.cursor = 'grab';
-    });
+    }, { passive: true });
 
     svg.style.cursor = 'grab';
 
@@ -658,7 +674,7 @@ function renderGraph(project, cpm){
             } else {
               selectOnly(t.id);
             }
-          });
+          }, { passive: true });
           g.appendChild(node);
       }
   }
@@ -788,8 +804,8 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         } else {
           selectOnly(t.id);
         }
-      });
-      bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+      }, { passive: true });
+      bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); }, { passive: false });
       id2node.set(t.id, { bar, label });
       g.appendChild(bar); y+=rowH; });
   Object.assign(ganttState, { P, W, finish, cpm, svg, id2node });
@@ -896,7 +912,7 @@ window.addEventListener('state:changed', e=>{
   const src=e.detail&&e.detail.sourceIds||[];
   if(!src.length){ pendingPatchIds=null; return; }
   pendingPatchIds=computeAffectedIds(SM.get(), src);
-});
+}, { passive: true });
 
 function onTimelinePointerDown(ev){
   const svg=ganttState.svg; if(!svg) return;
@@ -965,9 +981,9 @@ function onTimelinePointerUp(ev){
 
 const timelineRoot=document.getElementById('gantt');
 if(timelineRoot){
-  timelineRoot.addEventListener('pointerdown',onTimelinePointerDown);
-  timelineRoot.addEventListener('pointermove',onTimelinePointerMove);
-  timelineRoot.addEventListener('pointerup',onTimelinePointerUp);
+  timelineRoot.addEventListener('pointerdown',onTimelinePointerDown, { passive: true });
+  timelineRoot.addEventListener('pointermove',onTimelinePointerMove, { passive: true });
+  timelineRoot.addEventListener('pointerup',onTimelinePointerUp, { passive: true });
 }
 
 // ---------------------------- Focus & Issues rendering ----------------------------
@@ -1253,25 +1269,25 @@ function renderContextPanel(selectedId) {
           inlineEditor.style.backgroundColor = '';
       }, 500);
     }
-  });
+  }, { passive: true });
 
   $('#ctx-btn-duplicate').addEventListener('click', () => {
     selectOnly(task.id);
     duplicateSelected();
-  });
+  }, { passive: true });
 
   $('#ctx-btn-toggle-active').addEventListener('click', () => {
     const currentStatus = task.active !== false;
     SM.updateTask(task.id, { active: !currentStatus }, { name: currentStatus ? 'Deactivate Task' : 'Activate Task' });
     refresh();
-  });
+  }, { passive: true });
 
   $('#ctx-btn-delete').addEventListener('click', () => {
     if (confirm(`Are you sure you want to delete task "${task.name}"?`)) {
       selectOnly(task.id);
       deleteSelected();
     }
-  });
+  }, { passive: true });
 }
 
 // ----------------------------[ SCENARIO MANAGEMENT ]----------------------------
@@ -1499,7 +1515,7 @@ function renderInlineEditor(){
       <select data-id="${id}" data-field="active"><option value="true"${t.active!==false?' selected':''}>true</option><option value="false"${t.active===false?' selected':''}>false</option></select>`;
       box.appendChild(row);
     }
-    box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }); });
+    box.querySelectorAll('input,select').forEach(inp=>{ inp.addEventListener('change',()=>{ const id=inp.dataset.id; const field=inp.dataset.field; let val=inp.value; if(field==='duration') val=parseInt(val,10)||0; else if(field==='active') val=(val==='true'); else if(field==='pct') val=Math.min(100, Math.max(0, parseInt(val,10)||0)); SM.updateTask(id,{[field]:val}, {name: `Edit ${field}`}); refresh(); }, { passive: true }); });
   });
 }
 window.renderInlineEditor = renderInlineEditor;
@@ -1750,8 +1766,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
       refresh();
     }
 
-    startDateInput.addEventListener('change', handleStartDateChange);
-    startDateInput.addEventListener('blur', handleStartDateChange);
+    startDateInput.addEventListener('change', handleStartDateChange, { passive: true });
+    startDateInput.addEventListener('blur', handleStartDateChange, { passive: true });
     $('#holidayInput').onchange = ()=>{ SM.setProjectProps({holidays: parseHolidaysInput()}, {name: 'Update Holidays'}); SettingsStore.setCalendar({holidays: parseHolidaysInput()}); refresh(); };
     $('#severityFilter').onchange = ()=>{ renderIssues(SM.get(), lastCPMResult); };
     $('#filterText').oninput = ()=>{ SettingsStore.setFilters({text: $('#filterText').value}); refresh(); };
@@ -1825,7 +1841,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       const isDarkMode = html.classList.contains('dark-mode');
       localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
       btnToggleTheme.querySelector('.btn-icon').textContent = isDarkMode ? '☀️' : '🌙';
-    });
+    }, { passive: true });
     if (document.documentElement.classList.contains('dark-mode')) {
         btnToggleTheme.querySelector('.btn-icon').textContent = '☀️';
     }
@@ -1920,7 +1936,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
       showToast('Project data exported to project.json');
-    });
+    }, { passive: true });
 
     // 2. Import JSON
     $('#action-import-json').addEventListener('click', async () => {
@@ -1969,7 +1985,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
         $('#fatal').textContent = `Import Error: ${e.message}. Please ensure the file is valid JSON.`;
         $('#fatal').style.display = 'block';
       }
-    });
+    }, { passive: true });
 
     // 3. Export PNG
     async function exportGanttToPng() {
@@ -2051,7 +2067,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       };
       img.src = url;
     }
-    $('#action-export-png').addEventListener('click', exportGanttToPng);
+    $('#action-export-png').addEventListener('click', exportGanttToPng, { passive: true });
 
     // 4. Reset Demo Data
     $('#action-reset-demo').addEventListener('click', () => {
@@ -2065,26 +2081,26 @@ window.addEventListener('DOMContentLoaded', ()=>{
         refresh();
         showToast('Project has been reset to the demo data.');
       }
-    });
+    }, { passive: true });
 
     // 5. Toggle Theme
     $('#action-toggle-theme').addEventListener('click', () => {
       $('#toggle-theme').click(); // Reuse existing button's logic
       const isDark = document.documentElement.classList.contains('dark-mode');
       showToast(`Theme switched to ${isDark ? 'Dark' : 'Light'} Mode.`);
-    });
+    }, { passive: true });
 
     // 6. Help Modal
     $('#btn-help').addEventListener('click', () => {
       const helpModal = document.getElementById('new-help-modal');
       helpModal.style.display = 'flex';
-    });
+    }, { passive: true });
 
   }catch(err){
     console.error(err);
     const box=$('#fatal'); box.style.display='block'; box.textContent='Startup error:\n'+(err&&err.stack||String(err));
   }
-});
+}, { passive: true });
 
 // ----------------------------[ DATA TEMPLATES ]----------------------------
 // Predefined project templates for various use cases (HPC, Software, Hardware).
@@ -2243,9 +2259,9 @@ function enhanceTimelineReadability() {
 // Hook into your existing lifecycle
 const debouncedEnhance = debounce(enhanceTimelineReadability, 150);
 window.addEventListener('resize', debouncedEnhance, { passive: true });
-document.getElementById('zoomInTL')?.addEventListener('click', debouncedEnhance);
-document.getElementById('zoomOutTL')?.addEventListener('click', debouncedEnhance);
-document.getElementById('zoomResetTL')?.addEventListener('click', debouncedEnhance);
+document.getElementById('zoomInTL')?.addEventListener('click', debouncedEnhance, { passive: true });
+document.getElementById('zoomOutTL')?.addEventListener('click', debouncedEnhance, { passive: true });
+document.getElementById('zoomResetTL')?.addEventListener('click', debouncedEnhance, { passive: true });
 
 // Call after initial render; if your app already exposes renderGantt, patch it:
 const _renderGanttOrig = window.renderGantt;
@@ -2257,14 +2273,14 @@ if (typeof _renderGanttOrig === 'function') {
   }
 } else {
   // Fallback if you don't have a render wrapper
-  window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0));
+  window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0), { passive: true });
 }
 document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
   const on = !document.body.classList.contains('sidebar-collapsed');
   document.body.classList.toggle('sidebar-collapsed', on);
   e.currentTarget.setAttribute('aria-pressed', String(on));
   setTimeout(()=> enhanceTimelineReadability(), 0); // reflow
-});
+}, { passive: true });
 (function() {
   'use strict';
 
@@ -2291,7 +2307,7 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
       doc.classList.toggle('dark-mode');
       const isDarkMode = doc.classList.contains('dark-mode');
       localStorage.setItem('hpc-theme', isDarkMode ? 'dark' : 'light');
-    });
+    }, { passive: true });
   }
 
   // 3. Density toggle handler
@@ -2299,7 +2315,7 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     densityToggle.addEventListener('click', () => {
       const isCompact = doc.classList.toggle('compact');
       localStorage.setItem('hpc-compact', isCompact);
-    });
+    }, { passive: true });
   }
 
   // 4. Skeleton loading behavior
@@ -2359,14 +2375,14 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     } else {
       openMenu();
     }
-  });
+  }, { passive: true });
 
   document.addEventListener('click', (e) => {
     const isExpanded = actionButton.getAttribute('aria-expanded') === 'true';
     if (isExpanded && !actionMenu.contains(e.target) && !actionButton.contains(e.target)) {
       closeMenu();
     }
-  });
+  }, { passive: true });
 
   // Consolidated keydown handler for the whole menu
   actionMenu.addEventListener('keydown', (e) => {
@@ -2423,14 +2439,14 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     if (e.key === 'Escape' && actionMenu.classList.contains('open')) {
       closeMenu();
     }
-  });
+  }, { passive: true });
 
   // Add click listeners to close menu after action
   menuItems.forEach(item => {
     item.addEventListener('click', () => {
       // Action will be handled by other event listeners
       closeMenu();
-    });
+    }, { passive: true });
   });
 
 })();
@@ -2454,8 +2470,8 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
       btn.setAttribute('aria-expanded','false');
       setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
     }
-    btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); });
-    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); });
+    btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); }, { passive: true });
+    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
     menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
   }
   setupDropdown('btn-project-calendar','menu-project-calendar');

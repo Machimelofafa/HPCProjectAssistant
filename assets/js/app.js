@@ -28,7 +28,7 @@ function createCPMWorker(){
       return new Worker(url);
     }
   }
-  return new Worker('assets/js/cpm-worker.js');
+  return new Worker(new URL('./cpm-worker.js', import.meta.url));
 }
 
 
@@ -1522,7 +1522,7 @@ function newProject(){
 // ----------------------------[ APPLICATION BOOTSTRAP ]----------------------------
 // Main entry point of the application. Initializes the UI and sets up event listeners.
 // -------------------------------------------------------------------------------------
-window.addEventListener('DOMContentLoaded', ()=>{
+window.boot = ()=>{
   const ss = SettingsStore.get();
   rafBatch(()=>{
     if (UI_FLAGS.topSettingsToolbar) {
@@ -2004,7 +2004,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     console.error(err);
     const box=$('#fatal'); box.style.display='block'; box.textContent='Startup error:\n'+(err&&err.stack||String(err));
   }
-});
+};
 
 // ----------------------------[ DATA TEMPLATES ]----------------------------
 // Predefined project templates for various use cases (HPC, Software, Hardware).

@@ -111,8 +111,7 @@ function setStyle(el, prop, val){ if(el) rafBatch(()=>{ el.style[prop] = val; })
 function setValue(el, val){ if(el) rafBatch(()=>{ el.value = val; }); }
 
 // ----------------------------[ SETTINGS STORE ]----------------------------
-const UI_FLAGS = { topSettingsToolbar: true };
-window.ui = UI_FLAGS;
+window.ui = {};
 
 const SettingsStore = (function(){
   const state = {
@@ -1241,7 +1240,7 @@ function renderContextPanel(selectedId) {
 
       <h4 style="font-size: 0.9em; text-transform: uppercase; color: var(--c-text-muted); border-bottom: 1px solid var(--c-border); padding-bottom: var(--space-1); margin-bottom: var(--space-3);">Actions</h4>
       <div class="button-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
-        <button class="btn" id="ctx-btn-edit" title="Focus the editor fields for this task in the left sidebar">Edit</button>
+        <button class="btn" id="ctx-btn-edit" title="Focus the editor fields for this task">Edit</button>
         <button class="btn" id="ctx-btn-duplicate">Duplicate</button>
         <button class="btn" id="ctx-btn-toggle-active">${activeBtnText}</button>
         <button class="btn error" id="ctx-btn-delete">Delete</button>
@@ -1634,9 +1633,6 @@ function newProject(){
 window.addEventListener('DOMContentLoaded', ()=>{
   const ss = SettingsStore.get();
   rafBatch(()=>{
-    if (UI_FLAGS.topSettingsToolbar) {
-      document.body.classList.add('top-toolbar');
-    }
     setValue($('#slackThreshold'), ss.slackThreshold);
     setValue($('#filterText'), ss.filters.text);
     setValue($('#groupBy'), ss.filters.groupBy);
@@ -2255,12 +2251,6 @@ if (typeof _renderGanttOrig === 'function') {
   // Fallback if you don't have a render wrapper
   window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0), { passive: true });
 }
-document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
-  const on = !document.body.classList.contains('sidebar-collapsed');
-  document.body.classList.toggle('sidebar-collapsed', on);
-  e.currentTarget.setAttribute('aria-pressed', String(on));
-  setTimeout(()=> enhanceTimelineReadability(), 0); // reflow
-}, { passive: true });
 (function() {
   'use strict';
 

@@ -53,10 +53,4 @@ We welcome your feedback! If you have any suggestions or find any bugs, please [
 
 ## Top Settings Toolbar
 
-The project settings sidebar has been moved to a toolbar in the header. A feature flag controls the layout:
-
-```
-window.ui.topSettingsToolbar = true; // default
-```
-
-When `true`, the sidebar is hidden and settings are accessible from the toolbar dropdowns. Add new settings items by editing `index.html` and wiring events in `assets/js/app.js`.
+All project settings are now accessible through the toolbar dropdowns in the header. The previous sidebar has been removed, so new settings items should be added by editing `index.html` and wiring events in `assets/js/app.js`.

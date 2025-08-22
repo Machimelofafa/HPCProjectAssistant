@@ -2348,6 +2348,7 @@ if (typeof _renderGanttOrig === 'function') {
   }, { passive: true });
 
   document.addEventListener('click', (e) => {
+    if (e.target.closest('.legacy-header')) return;
     const isExpanded = actionButton.getAttribute('aria-expanded') === 'true';
     if (isExpanded && !actionMenu.contains(e.target) && !actionButton.contains(e.target)) {
       closeMenu();
@@ -2406,6 +2407,7 @@ if (typeof _renderGanttOrig === 'function') {
 
   // Global keydown for Escape, as menu may not have focus
   document.addEventListener('keydown', (e) => {
+    if (e.target.closest('.legacy-header')) return;
     if (e.key === 'Escape' && actionMenu.classList.contains('open')) {
       closeMenu();
     }

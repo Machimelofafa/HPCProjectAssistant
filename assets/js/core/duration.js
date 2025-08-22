@@ -28,6 +28,7 @@ function parseDuration(v){
   return { days };
 }
 
+export { parseDuration };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { parseDuration };
 }

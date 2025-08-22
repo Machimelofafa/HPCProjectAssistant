@@ -1,0 +1,18 @@
+{
+  "name": "hpcprojectassistant",
+  "version": "1.0.0",
+  "description": "This is an offline-first project planning tool designed for High-Performance Computing (HPC) and AI projects. The app is delivered as a static web page (index.html) with supporting assets under the `assets/` directory.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --env=jsdom"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5"
+  }
+}

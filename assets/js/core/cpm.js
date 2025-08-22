@@ -69,4 +69,7 @@ function computeCPM(project){
 
   return {order, tasks: out, finishDays: projectFinish, warnings};
 }
-
+export { computeCPM };
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { computeCPM };
+}

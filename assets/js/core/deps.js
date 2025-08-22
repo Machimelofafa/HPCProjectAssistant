@@ -39,6 +39,7 @@ function stringifyDep(e){ const lagStr = e.lag? ((e.lag>0?'+':'')+Math.round(e.l
  */
 function normalizeDeps(task){ const raw=task.deps||[]; const arr=[]; for(const tok of raw){ const p=parseDepToken(tok); if(!p) continue; arr.push(p); } return arr; }
 
+export { parseDepToken, stringifyDep, normalizeDeps };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { parseDepToken, stringifyDep, normalizeDeps };
 }

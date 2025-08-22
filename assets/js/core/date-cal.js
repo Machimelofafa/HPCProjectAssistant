@@ -84,6 +84,7 @@ function makeCalendar(mode, holidaysSet){
   };
 }
 
+export { parseDate, fmtDate, yyyymmdd_to_ddmmyyyy, ddmmyyyy_to_yyyymmdd, addDays, isWeekend, daysBetween, makeCalendar };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { parseDate, fmtDate, yyyymmdd_to_ddmmyyyy, ddmmyyyy_to_yyyymmdd, addDays, isWeekend, daysBetween, makeCalendar };
 }

@@ -1361,8 +1361,9 @@
     border-left: 4px solid var(--accent);
   }
   
-  /* Enhanced timeline */
-  #timeline{
+  /* Floating toolbar containers */
+  #timeline,
+  #graph {
     position: relative;
   }
 
@@ -1761,12 +1762,6 @@
 
     .tabs {
       flex-wrap: wrap;
-    }
-    .view-controls {
-      order: -1; /* Move to top on narrow screens */
-      width: 100%;
-      justify-content: center;
-      padding-bottom: var(--spacing-sm);
     }
   }
   

@@ -363,12 +363,6 @@
             <div class="tab" data-tab="focus" role="tab" aria-selected="false" aria-controls="focus">Where to focus</div>
             <div class="tab" data-tab="compare" role="tab" aria-selected="false" aria-controls="compare">Compare</div>
             <div class="tab" data-tab="tasks" role="tab" aria-controls="tasks">Tasks table</div>
-            <div class="view-controls" style="margin-left: auto; display: flex; align-items: center; gap: var(--spacing-md);">
-                <span style="margin-left:.5rem">Graph</span>
-                <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
-                <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
-                <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
-            </div>
         </nav>
         <section id="timeline" class="view active" role="tabpanel" aria-label="Project timeline view" tabindex="0">
             <div class="floating-toolbar">
@@ -380,6 +374,11 @@
             <div id="gantt-accessible-summary" class="sr-only" aria-live="polite"></div>
         </section>
         <section id="graph" class="view" role="tabpanel" aria-label="Dependency graph view" tabindex="0">
+            <div class="floating-toolbar">
+            <button class="btn small" id="zoomOutGR" aria-label="Zoom out graph">−</button>
+            <button class="btn small" id="zoomInGR" aria-label="Zoom in graph">+</button>
+            <button class="btn small" id="zoomResetGR" aria-label="Reset graph zoom">Fit</button>
+            </div>
             <svg id="graphSvg" role="img" aria-label="Dependency graph showing task relationships" tabindex="0"></svg>
         </section>
         <section id="focus" class="view" role="tabpanel" aria-label="Project focus and analysis view" tabindex="0">

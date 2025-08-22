@@ -83,9 +83,4 @@
     fileInput.click();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = $('#btnImportCSV');
-    if(btn) btn.addEventListener('click', startImport);
-  });
-
 })();

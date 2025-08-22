@@ -51,20 +51,7 @@ const SM = (function(){
     }
   }
 
-  function updateUndoUI(){
-    const undoBtn = $('#btnUndo');
-    const redoBtn = $('#btnRedo');
-    if(undoBtn){
-      const lastUndo = undo[undo.length - 1];
-      undoBtn.disabled = !canUndo();
-      undoBtn.title = lastUndo ? `Undo: ${lastUndo.name} (Ctrl+Z)` : 'Undo (Ctrl+Z)';
-    }
-    if(redoBtn){
-      const lastRedo = redo[redo.length - 1];
-      redoBtn.disabled = !canRedo();
-      redoBtn.title = lastRedo ? `Redo: ${lastRedo.name} (Ctrl+Y)` : 'Redo (Ctrl+Y)';
-    }
-  }
+  function updateUndoUI(){}
 
   function saveState(state){
     try{
@@ -72,14 +59,8 @@ const SM = (function(){
       localStorage.setItem('hpc-project-planner-data', data);
       saveBaselines();
       const lastSaved = new Date().toLocaleTimeString();
-      const lastSavedBadge = $('#lastSavedBadge');
-      if(lastSavedBadge){
-        lastSavedBadge.innerHTML = `<span class="pill-icon" aria-hidden="true">💾</span> Saved: ${lastSaved}`;
-      }
     }catch(e){
       console.warn('Failed to save state to localStorage', e);
-      const lastSavedBadge = $('#lastSavedBadge');
-      if(lastSavedBadge){ lastSavedBadge.textContent = 'Save failed'; }
     }
   }
 

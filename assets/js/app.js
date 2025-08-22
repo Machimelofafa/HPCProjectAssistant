@@ -1323,7 +1323,6 @@ function updateScenarioUI(){
     for(const name of items){
       const opt=document.createElement('option'); opt.value=name; opt.textContent=name; sel.appendChild(opt);
     }
-    const badge=$('#scenarioBadge'); if(badge) badge.textContent = `Scenario: ${SC.current()}`;
   }
 }
 function updateBaselineUI(){
@@ -1405,11 +1404,30 @@ function buildCompare(){
 
 
 // ----------------------------[ DATA IMPORT/EXPORT ]----------------------------
-// Functions for handling file I/O, including saving/loading projects and CSV export.
+// Functions for handling file I/O, including saving/loading projects.
 // ------------------------------------------------------------------------------------
-async function saveFile(json){ const blob=new Blob([json],{type:'application/json'}); if(window.showSaveFilePicker){ try{ const handle=await showSaveFilePicker({suggestedName:'project.hpc.json', types:[{description:'JSON', accept:{'application/json':['.json']}}]}); const w=await handle.createWritable(); await w.write(blob); await w.close(); return; }catch(e){ console.warn(e);} } const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='project.hpc.json'; a.click(); URL.revokeObjectURL(a.href); }
-async function openFile(){ if(window.showOpenFilePicker){ try{ const [h]=await showOpenFilePicker({types:[{description:'JSON/CSV', accept:{'application/json':['.json'],'text/csv':['.csv']}}]}); const f=await h.getFile(); const txt=await f.text(); return f.name.endsWith('.csv')? csvToProject(txt) : JSON.parse(txt); }catch(e){ console.warn(e);} } return new Promise((res)=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,.csv'; inp.onchange=async()=>{ const f=inp.files[0]; const txt=await f.text(); if(f.name.endsWith('.csv')) res(csvToProject(txt)); else res(JSON.parse(txt)); }; inp.click(); }); }
-function exportCSV(){ const rows=[['id','name','duration(d)','deps','phase','subsystem']]; for(const t of SM.get().tasks){ if(t.active===false) continue; rows.push([t.id,t.name,parseDuration(t.duration).days||0, (t.deps||[]).join(' '), t.phase||'', t.subsystem||''].map(x=>`"${String(x).replaceAll('"','""')}"`)); } const csv=rows.map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='project.csv'; a.click(); URL.revokeObjectURL(a.href); }
+async function openFile(){
+  if(window.showOpenFilePicker){
+    try{
+      const [h]=await showOpenFilePicker({types:[{description:'JSON/CSV', accept:{'application/json':['.json'],'text/csv':['.csv']}}]});
+      const f=await h.getFile();
+      const txt=await f.text();
+      return f.name.endsWith('.csv')? csvToProject(txt) : JSON.parse(txt);
+    }catch(e){ console.warn(e); }
+  }
+  return new Promise((res)=>{
+    const inp=document.createElement('input');
+    inp.type='file';
+    inp.accept='.json,.csv';
+    inp.onchange=async()=>{
+      const f=inp.files[0];
+      const txt=await f.text();
+      if(f.name.endsWith('.csv')) res(csvToProject(txt));
+      else res(JSON.parse(txt));
+    };
+    inp.click();
+  });
+}
 function csvToProject(csv){ const lines=csv.trim().split(/\r?\n/); const [header,...rows]=lines; const idx=(k)=> header.split(',').map(s=>s.replace(/\W+/g,'').toLowerCase()).indexOf(k.toLowerCase()); const iId=idx('id'), iName=idx('name'), iDur=idx('durationd'), iDeps=idx('deps'), iPhase=idx('phase'), iSub=idx('subsystem'); const tasks=rows.map(r=>{ const cols=r.match(/\"([^\"]|\"\")*\"|[^,]+/g).map(s=>s.replace(/^\"|\"$/g,'').replaceAll('""','"')); const d=parseDuration(+cols[iDur]||cols[iDur]||''); return { id: cols[iId]||uid('t'), name: cols[iName], duration: d.error? 1 : d.days, deps: (cols[iDeps]||'').split(/[\s;]/).filter(Boolean), phase: cols[iPhase]||'', subsystem: cols[iSub]||'System', active:true }; }); return {startDate: todayStr(), calendar: 'workdays', holidays:[], tasks}; }
 
 // ----------------------------[ UI: SELECTION & BULK EDIT ]----------------------------
@@ -1534,7 +1552,6 @@ function renderInlineEditor(){
 window.renderInlineEditor = renderInlineEditor;
   function updateSelBadge(){
     rafBatch(()=>{
-      setText($('#selBadge'), `${SEL.size} selected`);
       setText($('#bulkCount'), String(SEL.size));
       const ic = $('#inlineCount');
       if(ic) setText(ic, String(SEL.size));
@@ -1588,9 +1605,6 @@ function triggerCPM(project) {
     }
 
     cpmRequestActive = true;
-    const statusBadge = $('#cpmStatusBadge');
-    if(statusBadge) setStyle(statusBadge,'display','inline-flex');
-
     cpmWorker.postMessage({ type: 'compute', project: clone(project) });
 }
 
@@ -1616,16 +1630,6 @@ function refresh(){
     rafBatch(()=>{ triggerCPM(SM.get()); });
 }
 
-function newProject(){
-    SM.set({startDate: todayStr(), calendar:'workdays', holidays:[], tasks:[]}, {name: 'New Project'});
-    rafBatch(()=>{
-      setValue($('#startDate'), todayStr());
-      setValue($('#calendarMode'), 'workdays');
-      setValue($('#holidayInput'), '');
-    });
-    clearSelection();
-    refresh();
-}
 
 // ----------------------------[ APPLICATION BOOTSTRAP ]----------------------------
 // Main entry point of the application. Initializes the UI and sets up event listeners.
@@ -1649,8 +1653,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
         cpmWorker.onmessage = function(e) {
             if (e.data.type === 'result') {
                 cpmRequestActive = false;
-                const statusBadge = $('#cpmStatusBadge');
-                if(statusBadge) setStyle(statusBadge,'display','none');
 
                 lastCPMResult = e.data.cpm;
                 SM.setCPMWarnings(lastCPMResult.warnings || []);
@@ -1664,11 +1666,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
         cpmWorker.onerror = function(error) {
             console.error("CPM Worker Error:", error);
             cpmRequestActive = false;
-            const statusBadge = $('#cpmStatusBadge');
-            if(statusBadge) {
-                setText(statusBadge,'Error!');
-                setStyle(statusBadge,'backgroundColor','var(--error)');
-            }
         };
     } else {
         console.error("Web Workers are not supported in this browser.");
@@ -1698,10 +1695,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
       try {
         const project = JSON.parse(saved);
         SM.set(project, {record: false, noSave: true});
-        const lastSavedBadge = $('#lastSavedBadge');
-        if (lastSavedBadge) {
-          lastSavedBadge.innerHTML = `<span class="pill-icon" aria-hidden="true">💾</span> Loaded from storage`;
-        }
         showToast('Loaded project from last session.');
       } catch (e) {
         console.warn('Failed to parse saved data, starting fresh.', e);
@@ -1720,7 +1713,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     refresh();
 
     // reactive
-    SM.onChange(()=>{ $('#btnUndo').disabled=!SM.canUndo(); $('#btnRedo').disabled=!SM.canRedo(); updateSelBadge(); });
+    SM.onChange(()=>{ updateSelBadge(); });
 
     // tabs
     $$('.tab').forEach(t=> t.onclick=()=>{
@@ -1799,67 +1792,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     $('#btnUseBaseline') && ($('#btnUseBaseline').onclick=()=>{ const id=$('#baselineSelect').value; CURRENT_BASELINE=id; buildCompare(); });
     $('#btnAddBaseline') && ($('#btnAddBaseline').onclick=()=>{ const name=prompt('Baseline name'); if(!name) return; SM.addBaseline(name); updateBaselineUI(); });
 
-    // I/O
-    $('#btnExportCSV').onclick=exportCSV;
-    $('#btnExportJSON').onclick=()=>{ const project = SM.get(); project.schemaVersion = SCHEMA_VERSION; const json=JSON.stringify(project, null, 2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download='project.json'; a.click(); URL.revokeObjectURL(a.href); };
-    $('#btnSave').onclick=()=> { const project = SM.get(); project.schemaVersion = SCHEMA_VERSION; saveFile(JSON.stringify(project, null, 2)); };
-    $('#btnLoad').onclick=async()=>{
-      const data=await openFile();
-      if(!data) return;
-
-      const { ok, errors, warnings, project, migrated } = validateProject(data);
-
-      if (errors.length > 0 || warnings.length > 0) {
-        let message = '';
-        if (errors.length > 0) {
-          message += 'Errors found during import:\n' + errors.map(e => `- ${e.msg}`).join('\\n');
-        }
-        if (warnings.length > 0) {
-          message += '\\n\\nWarnings:\\n' + warnings.map(w => `- ${w.msg}`).join('\\n');
-        }
-
-        if (!ok) {
-          alert('Import failed!\\n\\n' + message);
-          return;
-        } else {
-          if (!confirm('Project imported with some issues. Import anyway?\\n\\n' + message)) {
-            return;
-          }
-        }
-      }
-
-      SM.set(project, {name: 'Load Project'});
-      $('#startDate').value=SM.get().startDate;
-      $('#calendarMode').value=SM.get().calendar;
-      $('#holidayInput').value=(SM.get().holidays||[]).join(', ');
-      clearSelection();
-      refresh();
-      if (migrated) {
-        showToast('Project data was migrated to the latest version.');
-      } else {
-        showToast('Project loaded successfully.');
-      }
-    };
-    $('#btnNew').onclick=newProject; $('#btnPrint').onclick=()=>window.print();
-    $('#btnGuide').onclick=()=>document.getElementById('help-modal').style.display = 'flex';
-
-    // theme
-    const btnToggleTheme = $('#btnToggleTheme');
-    btnToggleTheme.addEventListener('click', () => {
-      const html = document.documentElement;
-      html.classList.toggle('dark-mode');
-      const isDarkMode = html.classList.contains('dark-mode');
-      localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-      btnToggleTheme.querySelector('.btn-icon').textContent = isDarkMode ? '☀️' : '🌙';
-    }, { passive: true });
-    if (document.documentElement.classList.contains('dark-mode')) {
-        btnToggleTheme.querySelector('.btn-icon').textContent = '☀️';
-    }
-
-
     // history
-    $('#btnUndo').onclick=()=>{ SM.undo(); refresh(); };
-    $('#btnRedo').onclick=()=>{ SM.redo(); refresh(); };
     window.addEventListener('keydown', (e)=>{
       const tag=(e.target.tagName||'').toLowerCase();
       if(e.target.isContentEditable || ['input','textarea','select'].includes(tag)) return;
@@ -1878,13 +1811,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
         helpModal.style.display = helpModal.style.display === 'flex' ? 'none' : 'flex';
       } else if (e.ctrlKey || e.metaKey) {
         switch(k.toLowerCase()) {
-          case 's': e.preventDefault(); $('#btnSave').click(); break;
-          case 'o': e.preventDefault(); $('#btnLoad').click(); break;
-          case 'p': e.preventDefault(); $('#btnPrint').click(); break;
+          case 's': e.preventDefault(); $('#action-export-json').click(); break;
+          case 'o': e.preventDefault(); $('#action-import-json').click(); break;
+          case 'p': e.preventDefault(); window.print(); break;
         }
       }
     });
-
     // Guide modal
     (function(){ let step=1; const max=5; const modal=$('#guided-workflow'); function showStep(){ for(let i=1;i<=max;i++){ $('#wz'+i).style.display = (i===step)?'block':'none'; } $('#wzPrev').disabled = step===1; $('#wzNext').textContent = step===max? 'Done' : 'Next'; }
       $('#wzPrev').onclick=()=>{ if(step>1) step--; showStep(); };
@@ -2352,8 +2284,7 @@ if (typeof _renderGanttOrig === 'function') {
     if (
       isExpanded &&
       !actionMenu.contains(e.target) &&
-      !actionButton.contains(e.target) &&
-      !e.target.closest('.legacy-header')
+      !actionButton.contains(e.target)
     ) {
       closeMenu();
     }
@@ -2446,7 +2377,7 @@ if (typeof _renderGanttOrig === 'function') {
       setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
     }
     btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); }, { passive: true });
-    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target) && !e.target.closest('.legacy-header')) closeMenu(); }, { passive: true });
+    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
     menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
   }
   setupDropdown('btn-project-calendar','menu-project-calendar');

@@ -28,10 +28,12 @@ The app is delivered as a static web page (index.html) with supporting assets un
 
 ### Export/Import
 
-You can export your project plan to a JSON file and import it back into the tool. This is useful for sharing your plan with others or for version control.
+You can export your project plan to a JSON file and import it back into the tool. CSV support is also available for moving task lists in and out of the planner.
 
-*   **Export:** Click the "Action" button in the header and select "Export JSON".
-*   **Import:** Click the "Action" button and select "Import JSON".
+*   **Export JSON:** Click the "Action" button in the header and select "Export JSON".
+*   **Import JSON:** Click the "Action" button and select "Import JSON".
+*   **Export CSV:** Click the "Export CSV" button in the toolbar to save task data as a comma-separated file.
+*   **Import CSV:** Click "Import CSV" and choose a file to map its columns and create tasks in the current project.
 
 ### Baselines
 

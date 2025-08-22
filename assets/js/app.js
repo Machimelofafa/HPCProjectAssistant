@@ -140,7 +140,7 @@ function showContextMenu(x,y,id){
   });
 }
 function hideContextMenu(){ setStyle($('#ctxMenu'),'display','none'); }
-document.addEventListener('click', hideContextMenu);
+document.addEventListener('click', hideContextMenu, { passive: true });
 
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
 // Functions for parsing and validating specific data formats like duration and dependencies.
@@ -436,9 +436,14 @@ function InteractionManager(svg, options = {}) {
 
     let dragging = false;
     let p0 = null;
+    let wheelData = null;
+    let wheelScheduled = false;
 
-    svg.addEventListener('wheel', (e) => {
-        e.preventDefault();
+    function processWheel() {
+        wheelScheduled = false;
+        const e = wheelData;
+        wheelData = null;
+        if (!e) return;
 
         if (e.ctrlKey) { // ZOOM
             const scale = e.deltaY > 0 ? 1.1 : 0.9;
@@ -464,6 +469,25 @@ function InteractionManager(svg, options = {}) {
             const panYAmount = (e.shiftKey ? 0 : e.deltaY) * (vb[3] / clientHeight);
             setVB(vb[0] + panXAmount, vb[1] + panYAmount, vb[2], vb[3]);
         }
+    }
+
+    svg.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const { deltaY, deltaX, ctrlKey, shiftKey, offsetX, offsetY } = e;
+        if (wheelData) {
+            wheelData.deltaY += deltaY;
+            wheelData.deltaX += deltaX;
+            wheelData.offsetX = offsetX;
+            wheelData.offsetY = offsetY;
+            wheelData.ctrlKey = ctrlKey;
+            wheelData.shiftKey = shiftKey;
+        } else {
+            wheelData = { deltaY, deltaX, ctrlKey, shiftKey, offsetX, offsetY };
+        }
+        if (!wheelScheduled) {
+            wheelScheduled = true;
+            requestAnimationFrame(processWheel);
+        }
     }, { passive: false });
 
     svg.addEventListener('pointerdown', (e) => {
@@ -472,7 +496,7 @@ function InteractionManager(svg, options = {}) {
         p0 = { x: e.clientX, y: e.clientY, vb0: [...vb] };
         svg.setPointerCapture(e.pointerId);
         svg.style.cursor = 'grabbing';
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointermove', (e) => {
         if (!dragging) return;
@@ -481,14 +505,14 @@ function InteractionManager(svg, options = {}) {
         const dx = (e.clientX - p0.x) * (vb[2] / clientWidth);
         const dy = (e.clientY - p0.y) * (vb[3] / clientHeight);
         setVB(p0.vb0[0] - dx, p0.vb0[1] - dy, vb[2], vb[3]);
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointerup', (e) => {
         if (!dragging) return;
         dragging = false;
         svg.releasePointerCapture(e.pointerId);
         svg.style.cursor = 'grab';
-    });
+    }, { passive: true });
 
     svg.style.cursor = 'grab';
 
@@ -896,7 +920,7 @@ window.addEventListener('state:changed', e=>{
   const src=e.detail&&e.detail.sourceIds||[];
   if(!src.length){ pendingPatchIds=null; return; }
   pendingPatchIds=computeAffectedIds(SM.get(), src);
-});
+}, { passive: true });
 
 function onTimelinePointerDown(ev){
   const svg=ganttState.svg; if(!svg) return;
@@ -965,9 +989,9 @@ function onTimelinePointerUp(ev){
 
 const timelineRoot=document.getElementById('gantt');
 if(timelineRoot){
-  timelineRoot.addEventListener('pointerdown',onTimelinePointerDown);
-  timelineRoot.addEventListener('pointermove',onTimelinePointerMove);
-  timelineRoot.addEventListener('pointerup',onTimelinePointerUp);
+  timelineRoot.addEventListener('pointerdown',onTimelinePointerDown, { passive: true });
+  timelineRoot.addEventListener('pointermove',onTimelinePointerMove, { passive: true });
+  timelineRoot.addEventListener('pointerup',onTimelinePointerUp, { passive: true });
 }
 
 // ---------------------------- Focus & Issues rendering ----------------------------

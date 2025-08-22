@@ -18,7 +18,7 @@
 <!--
   ID INVENTORY:
   stripes, critStripes, btnNew, btnLoad, btnSave, btnExportJSON, btnExportCSV, btnUndo, btnRedo,
-  btnPrint, btnGuide, btnToggleTheme, btnToggleSidebar, selBadge, scenarioBadge, lastSavedBadge,
+  btnPrint, btnGuide, btnToggleTheme, selBadge, scenarioBadge, lastSavedBadge,
   boot, fatal, appRoot, startDate, startDateHelp, calendarMode, calendarModeHelp, holidayInput,
   holidayInputHelp, slackThreshold, slackThresholdHelp, filterText, groupBy, groupByHelp,
   btnFilterClear, btnSelectFiltered, btnClearSel, btnSubAll, btnSubNone, subsysFilters,
@@ -109,7 +109,6 @@
             <span class="btn-icon" aria-hidden="true">🌙</span>
             <span class="sr-only">Theme</span>
           </button>
-          <button class="btn small" id="btnToggleSidebar" aria-pressed="false" aria-label="Toggle sidebar">☰</button>
         </div>
       </div>
     </div>
@@ -351,7 +350,6 @@
   </div>
   <div id="fatal"></div>
   <div class="container grid" id="layout" style="display:grid">
-    <aside class="panel controls" id="left-panel"></aside>
     <section class="panel" id="main">
         <div class="kpis">
             <div class="kpi card" id="kpiCritical">Critical: 12</div>
@@ -537,7 +535,7 @@
       </div>
       <div class="wizard-step" id="wz2" style="display:none" role="tabpanel" aria-labelledby="wz2Title">
         <h3 id="wz2Title">2) Import or insert a template</h3>
-        <p>Use <b>Open…</b> to load JSON/CSV or pick a library from the sidebar and click <b>Insert library</b>.</p>
+        <p>Use <b>Open…</b> to load JSON/CSV or pick a library from the dropdown menu and click <b>Insert library</b>.</p>
       </div>
       <div class="wizard-step" id="wz3" style="display:none" role="tabpanel" aria-labelledby="wz3Title">
         <h3 id="wz3Title">3) Wire dependencies</h3>

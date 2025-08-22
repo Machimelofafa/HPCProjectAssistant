@@ -3,6 +3,16 @@
 
 const SCHEMA_VERSION = '1.0.0';
 
+const TL_CONSTS = Object.freeze({
+  ROW_H: 28,
+  PAD: 20,
+  TICK_SIZE: 20,
+  START_Y: 30,
+  EXTRA_H: 60,
+  TICK_LABEL_Y: 14,
+  TICK_LABEL_OFFSET_X: 2,
+});
+
 /**
  * =============================================================================
  * Main application module.
@@ -689,9 +699,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   if(Object.keys(groups).length){ for(const k of Object.keys(groups).sort()){ order.push([k, groups[k].sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]); } }
   if(!order.length) order.push(['', tasks.sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]);
   const rows=[]; order.forEach(([k,arr])=>{ if(k){ rows.push({type:'group', label:k}); } arr.forEach(t=> rows.push({type:'task', t})); });
-  const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
+  const rowH=TL_CONSTS.ROW_H; const chartH=Math.max(H, rows.length*rowH+TL_CONSTS.EXTRA_H); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
-  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-TL_CONSTS.PAD))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-TL_CONSTS.PAD));
   const startDate=parseDate(project.startDate); if(!startDate){ showToast('Invalid project start date.'); return; }
   const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
@@ -699,11 +709,11 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const tickDates=[];
   let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
   while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
-  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
+  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',TL_CONSTS.TICK_SIZE); l.setAttribute('x2',x); l.setAttribute('y2',chartH-TL_CONSTS.TICK_SIZE); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+TL_CONSTS.TICK_LABEL_OFFSET_X); t.setAttribute('y',TL_CONSTS.TICK_LABEL_Y); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
    const id2node=new Map();
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
+  let y=TL_CONSTS.START_Y; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
@@ -755,7 +765,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     label.appendChild(titleEl);
 
     const name = t.name || '';
-    const maxCharsPerLine = Math.floor((P - 20) / 8.5);
+    const maxCharsPerLine = Math.floor((P - TL_CONSTS.PAD) / 8.5);
 
     if (name.length > maxCharsPerLine) {
         let breakPoint = name.lastIndexOf(' ', maxCharsPerLine);
@@ -819,7 +829,7 @@ function patchGantt(project, cpm, ids){
   const {P,W,finish,id2node,svg} = ganttState;
   if(!svg || !id2node.size){ renderGantt(project,cpm); return; }
   if(!ids || !ids.size){ return; }
-  const scale = (x)=> P + (x*(W-P-20))/finish;
+  const scale = (x)=> P + (x*(W-P-TL_CONSTS.PAD))/finish;
   const map = new Map(cpm.tasks.map(t=>[t.id,t]));
   ids.forEach(id=>{
     const t = map.get(id);
@@ -915,7 +925,7 @@ function onTimelinePointerMove(ev){
   const gg=ganttState.id2node.get(drag.id)?.bar;
   if(!gg) return;
   const rect=gg.querySelector('rect'); const labelNext=gg.querySelector('.duration-label');
-  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
+  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-TL_CONSTS.PAD));
   if(drag.side==='right'){
     const newW=Math.max(4,drag.w0+dx); rect.setAttribute('width',newW);
     const dur=scaleInv(+rect.getAttribute('x')+newW)-(ganttState.cpm.tasks.find(t=>t.id===drag.id).es||0);
@@ -938,7 +948,7 @@ function onTimelinePointerUp(ev){
   if(!gg){ drag=null; return; }
   if(!drag.moved){ gg.classList.remove('moved','invalid','valid'); drag=null; return; }
   const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width');
-  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
+  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-TL_CONSTS.PAD));
   const esNew=scaleInv(x); const efNew=scaleInv(x+w); const durNew=Math.max(1,efNew-esNew);
   const cur=ganttState.cpm.tasks.find(t=>t.id===drag.id);
   if(drag.side==='right'){

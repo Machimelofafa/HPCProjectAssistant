@@ -847,7 +847,7 @@
     font-size: 13px;
     fill: var(--ink);
     font-weight: 500;
-    /* Ensure bar labels are fill-only */
+    /* Default bar labels are fill-only */
     filter: none;
     stroke: none;
     text-shadow: none;
@@ -868,6 +868,10 @@
     font-weight: 700;
     dominant-baseline: middle;
     text-rendering: optimizeLegibility;
+    paint-order: stroke fill;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    stroke-linejoin: round;
   }
   
   /* Duration and percentage labels - make them more readable */
@@ -880,13 +884,6 @@
     fill: var(--ink);
   }
   
-  /* Task name background styling */
-  .taskNameBg{
-    opacity: 0.95;
-  }
-  html.dark-mode .taskNameBg {
-    opacity: 1;
-  }
   
   .gantt .handle{
     fill: #94a3b8;
@@ -1987,10 +1984,15 @@
     background: #94a3b8;
   }
 
-  /* High-contrast task name chip + safe ellipsis */
-  .taskNameBg { fill: var(--panel); stroke: var(--line); opacity: 1; }
+  /* Task name text styling */
   #timeline .gantt text.taskName {
-    font-size: 14px; font-weight: 700; fill: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--ink);
+    paint-order: stroke fill;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    stroke-linejoin: round;
   }
 
   /* Inside-bar labels: auto-hide when bar is narrow */

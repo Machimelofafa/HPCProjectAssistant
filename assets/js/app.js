@@ -2348,6 +2348,7 @@ if (typeof _renderGanttOrig === 'function') {
   }, { passive: true });
 
   document.addEventListener('click', (e) => {
+    if (e.target.closest('.legacy-header')) return;
     const isExpanded = actionButton.getAttribute('aria-expanded') === 'true';
     if (isExpanded && !actionMenu.contains(e.target) && !actionButton.contains(e.target)) {
       closeMenu();
@@ -2406,6 +2407,7 @@ if (typeof _renderGanttOrig === 'function') {
 
   // Global keydown for Escape, as menu may not have focus
   document.addEventListener('keydown', (e) => {
+    if (e.target.closest('.legacy-header')) return;
     if (e.key === 'Escape' && actionMenu.classList.contains('open')) {
       closeMenu();
     }
@@ -2441,7 +2443,7 @@ if (typeof _renderGanttOrig === 'function') {
       setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
     }
     btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); }, { passive: true });
-    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
+    document.addEventListener('click',(e)=>{ if(e.target.closest('.legacy-header')) return; const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
     menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
   }
   setupDropdown('btn-project-calendar','menu-project-calendar');

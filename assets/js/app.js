@@ -17,6 +17,7 @@ let cpmRequestActive = false;
 let lastCPMResult = null;
 let graphInitialized = false;
 let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null };
+const ganttNodes=new Map();
 let drag = null;
 
 function createCPMWorker(){
@@ -663,7 +664,7 @@ function renderGraph(project, cpm){
   }
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
-function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
+function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; ganttNodes.clear(); const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
   const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
   const P = Math.min(400, 10 + maxLen * 8.5);
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
@@ -778,6 +779,7 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     } else {
         label.textContent = name;
     }
+    ganttNodes.set(t.id,{bar,label});
     const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
     if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
       bar.addEventListener('click', (ev)=>{
@@ -835,7 +837,7 @@ function onTimelinePointerMove(ev){
   if(!drag) return; const svg=ganttState.svg;
   const dx=ev.clientX-drag.px0, dy=ev.clientY-drag.py0;
   if(!drag.moved){ if(Math.abs(dx)<2&&Math.abs(dy)<2) return; drag.moved=true; svg.setPointerCapture(ev.pointerId); }
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
+  const nodes=ganttNodes.get(drag.id); if(!nodes) return; const gg=nodes.bar;
   const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1];
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
   if(drag.side==='right'){
@@ -856,7 +858,7 @@ function onTimelinePointerUp(ev){
   if(!drag) return; const svg=ganttState.svg;
   if(svg.hasPointerCapture&&svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
   hideHint();
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
+  const gg=ganttNodes.get(drag.id)?.bar; if(!gg){ drag=null; return; }
   if(!drag.moved){ gg.classList.remove('moved','invalid','valid'); drag=null; return; }
   const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width');
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
@@ -1029,12 +1031,12 @@ function renderIssues(project, cpm, targetSel) {
               if (taskId) {
                 selectOnly(taskId);
                 refresh();
-                const bar = document.querySelector(`.bar[data-id="${taskId}"]`);
-                if (bar) {
-                  bar.scrollIntoView({behavior: 'smooth', block: 'center'});
-                  bar.style.transition = 'outline 0.1s';
-                  bar.style.outline = '2px solid var(--accent)';
-                  setTimeout(() => bar.style.outline = '', 1000);
+                const bar=ganttNodes.get(taskId)?.bar;
+                if(bar){
+                  bar.scrollIntoView({behavior:'smooth',block:'center'});
+                  bar.style.transition='outline 0.1s';
+                  bar.style.outline='2px solid var(--accent)';
+                  setTimeout(()=>bar.style.outline='',1000);
                 }
               }
             }

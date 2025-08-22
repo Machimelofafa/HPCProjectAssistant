@@ -140,7 +140,7 @@ function showContextMenu(x,y,id){
   });
 }
 function hideContextMenu(){ setStyle($('#ctxMenu'),'display','none'); }
-document.addEventListener('click', hideContextMenu);
+document.addEventListener('click', hideContextMenu, { passive: true });
 
 // ----------------------------[ PARSERS & VALIDATORS ]----------------------------
 // Functions for parsing and validating specific data formats like duration and dependencies.
@@ -437,32 +437,49 @@ function InteractionManager(svg, options = {}) {
     let dragging = false;
     let p0 = null;
 
+    let wheelEvt = null;
+    let wheelFrame = null;
     svg.addEventListener('wheel', (e) => {
         e.preventDefault();
+        if (!wheelEvt) {
+            wheelEvt = { deltaX: 0, deltaY: 0, offsetX: e.offsetX, offsetY: e.offsetY, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey };
+        }
+        wheelEvt.deltaX += e.deltaX;
+        wheelEvt.deltaY += e.deltaY;
+        wheelEvt.ctrlKey = e.ctrlKey;
+        wheelEvt.shiftKey = e.shiftKey;
+        wheelEvt.offsetX = e.offsetX;
+        wheelEvt.offsetY = e.offsetY;
+        if (!wheelFrame) {
+            wheelFrame = requestAnimationFrame(() => {
+                wheelFrame = null;
+                const ev = wheelEvt;
+                wheelEvt = null;
+                if (ev.ctrlKey) { // ZOOM
+                    const scale = ev.deltaY > 0 ? 1.1 : 0.9;
+                    const mx = ev.offsetX;
+                    const my = ev.offsetY;
+                    const clientWidth = svg.clientWidth || 1;
+                    const clientHeight = svg.clientHeight || 1;
 
-        if (e.ctrlKey) { // ZOOM
-            const scale = e.deltaY > 0 ? 1.1 : 0.9;
-            const mx = e.offsetX;
-            const my = e.offsetY;
-            const clientWidth = svg.clientWidth || 1;
-            const clientHeight = svg.clientHeight || 1;
+                    const pointX = vb[0] + mx * (vb[2] / clientWidth);
+                    const pointY = vb[1] + my * (vb[3] / clientHeight);
 
-            const pointX = vb[0] + mx * (vb[2] / clientWidth);
-            const pointY = vb[1] + my * (vb[3] / clientHeight);
+                    const newW = vb[2] * scale;
+                    const newH = vb[3] * scale;
 
-            const newW = vb[2] * scale;
-            const newH = vb[3] * scale;
+                    const newX = pointX - mx * (newW / clientWidth);
+                    const newY = pointY - my * (newH / clientHeight);
 
-            const newX = pointX - mx * (newW / clientWidth);
-            const newY = pointY - my * (newH / clientHeight);
-
-            setVB(newX, newY, newW, newH);
-        } else { // PAN
-            const clientWidth = svg.clientWidth || 1;
-            const clientHeight = svg.clientHeight || 1;
-            const panXAmount = (e.shiftKey ? e.deltaY : e.deltaX) * (vb[2] / clientWidth);
-            const panYAmount = (e.shiftKey ? 0 : e.deltaY) * (vb[3] / clientHeight);
-            setVB(vb[0] + panXAmount, vb[1] + panYAmount, vb[2], vb[3]);
+                    setVB(newX, newY, newW, newH);
+                } else { // PAN
+                    const clientWidth = svg.clientWidth || 1;
+                    const clientHeight = svg.clientHeight || 1;
+                    const panXAmount = (ev.shiftKey ? ev.deltaY : ev.deltaX) * (vb[2] / clientWidth);
+                    const panYAmount = (ev.shiftKey ? 0 : ev.deltaY) * (vb[3] / clientHeight);
+                    setVB(vb[0] + panXAmount, vb[1] + panYAmount, vb[2], vb[3]);
+                }
+            });
         }
     }, { passive: false });
 
@@ -472,7 +489,7 @@ function InteractionManager(svg, options = {}) {
         p0 = { x: e.clientX, y: e.clientY, vb0: [...vb] };
         svg.setPointerCapture(e.pointerId);
         svg.style.cursor = 'grabbing';
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointermove', (e) => {
         if (!dragging) return;
@@ -481,14 +498,14 @@ function InteractionManager(svg, options = {}) {
         const dx = (e.clientX - p0.x) * (vb[2] / clientWidth);
         const dy = (e.clientY - p0.y) * (vb[3] / clientHeight);
         setVB(p0.vb0[0] - dx, p0.vb0[1] - dy, vb[2], vb[3]);
-    });
+    }, { passive: true });
 
     svg.addEventListener('pointerup', (e) => {
         if (!dragging) return;
         dragging = false;
         svg.releasePointerCapture(e.pointerId);
         svg.style.cursor = 'grab';
-    });
+    }, { passive: true });
 
     svg.style.cursor = 'grab';
 
@@ -896,7 +913,7 @@ window.addEventListener('state:changed', e=>{
   const src=e.detail&&e.detail.sourceIds||[];
   if(!src.length){ pendingPatchIds=null; return; }
   pendingPatchIds=computeAffectedIds(SM.get(), src);
-});
+}, { passive: true });
 
 function onTimelinePointerDown(ev){
   const svg=ganttState.svg; if(!svg) return;
@@ -965,9 +982,9 @@ function onTimelinePointerUp(ev){
 
 const timelineRoot=document.getElementById('gantt');
 if(timelineRoot){
-  timelineRoot.addEventListener('pointerdown',onTimelinePointerDown);
-  timelineRoot.addEventListener('pointermove',onTimelinePointerMove);
-  timelineRoot.addEventListener('pointerup',onTimelinePointerUp);
+  timelineRoot.addEventListener('pointerdown', onTimelinePointerDown, { passive: true });
+  timelineRoot.addEventListener('pointermove', onTimelinePointerMove, { passive: true });
+  timelineRoot.addEventListener('pointerup', onTimelinePointerUp, { passive: true });
 }
 
 // ---------------------------- Focus & Issues rendering ----------------------------
@@ -2366,7 +2383,7 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
     if (isExpanded && !actionMenu.contains(e.target) && !actionButton.contains(e.target)) {
       closeMenu();
     }
-  });
+  }, { passive: true });
 
   // Consolidated keydown handler for the whole menu
   actionMenu.addEventListener('keydown', (e) => {
@@ -2455,7 +2472,7 @@ document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
       setTimeout(()=>{ if(!menu.classList.contains('open')) menu.style.display='none'; },150);
     }
     btn.addEventListener('click',()=>{ const exp=btn.getAttribute('aria-expanded')==='true'; exp?closeMenu():openMenu(); });
-    document.addEventListener('click',(e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); });
+    document.addEventListener('click', (e)=>{ const exp=btn.getAttribute('aria-expanded')==='true'; if(exp && !menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); }, { passive: true });
     menu.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenu(); return; } if(e.key==='Tab'){ const items=getItems(); if(items.length){ const first=items[0]; const last=items[items.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }});
   }
   setupDropdown('btn-project-calendar','menu-project-calendar');

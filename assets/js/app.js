@@ -18,6 +18,8 @@ let lastCPMResult = null;
 let graphInitialized = false;
 let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null };
 let drag = null;
+// Cache of task id to its bar and label DOM nodes
+const BAR_NODE_MAP = new Map();
 
 function createCPMWorker(){
   if (location.protocol === 'file:') {
@@ -663,7 +665,7 @@ function renderGraph(project, cpm){
   }
 
 function colorFor(subsys){ const M={'power/VRM':'--pwr','PCIe':'--pcie','BMC':'--bmc','BIOS':'--bios','FW':'--fw','Mech':'--mech','Thermal':'--thermal','System':'--sys'}; const v=M[subsys]||'--ok'; return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#16a34a'; }
-function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
+function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; BAR_NODE_MAP.clear(); const W=(svg.getBoundingClientRect().width||800); const H=(svg.getBoundingClientRect().height||500); const tasksAll=cpm.tasks.slice(); const tasks=tasksAll.filter(matchesFilters);
   const maxLen = Math.max(20, ...tasks.map(t=>(t.name||'').length));
   const P = Math.min(400, 10 + maxLen * 8.5);
   const cal=makeCalendar(project.calendar, new Set(project.holidays||[]));
@@ -788,7 +790,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         }
       });
       bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
-      g.appendChild(bar); y+=rowH; });
+      g.appendChild(bar);
+      BAR_NODE_MAP.set(t.id,{bar,label});
+      y+=rowH; });
   Object.assign(ganttState, { P, W, finish, cpm, svg });
 
   // Accessible summary
@@ -835,7 +839,8 @@ function onTimelinePointerMove(ev){
   if(!drag) return; const svg=ganttState.svg;
   const dx=ev.clientX-drag.px0, dy=ev.clientY-drag.py0;
   if(!drag.moved){ if(Math.abs(dx)<2&&Math.abs(dy)<2) return; drag.moved=true; svg.setPointerCapture(ev.pointerId); }
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
+  const gg=BAR_NODE_MAP.get(drag.id)?.bar;
+  if(!gg) return;
   const rect=gg.querySelector('rect'); const labelNext=gg.querySelectorAll('text')[1];
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
   if(drag.side==='right'){
@@ -856,7 +861,8 @@ function onTimelinePointerUp(ev){
   if(!drag) return; const svg=ganttState.svg;
   if(svg.hasPointerCapture&&svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
   hideHint();
-  const gg=$(`.bar[data-id="${drag.id}"]`,svg);
+  const gg=BAR_NODE_MAP.get(drag.id)?.bar;
+  if(!gg){ drag=null; return; }
   if(!drag.moved){ gg.classList.remove('moved','invalid','valid'); drag=null; return; }
   const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width');
   const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
@@ -1029,7 +1035,7 @@ function renderIssues(project, cpm, targetSel) {
               if (taskId) {
                 selectOnly(taskId);
                 refresh();
-                const bar = document.querySelector(`.bar[data-id="${taskId}"]`);
+                const bar = BAR_NODE_MAP.get(taskId)?.bar;
                 if (bar) {
                   bar.scrollIntoView({behavior: 'smooth', block: 'center'});
                   bar.style.transition = 'outline 0.1s';
@@ -1311,7 +1317,12 @@ const SEL=new Set();
 let LAST_SEL=null;
 const debouncedRefresh = debounce(refresh, 50);
 function updateSelectionUI(){
-  document.querySelectorAll('.bar, .node').forEach(el=>{
+  for(const [id, nodes] of BAR_NODE_MAP){
+    const sel = SEL.has(id);
+    if(nodes.bar) nodes.bar.classList.toggle('selected', sel);
+    if(nodes.label) nodes.label.classList.toggle('selected', sel);
+  }
+  document.querySelectorAll('.node').forEach(el=>{
     const id=el.getAttribute('data-id');
     el.classList.toggle('selected', SEL.has(id));
   });

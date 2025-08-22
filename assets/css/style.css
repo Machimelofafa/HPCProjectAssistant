@@ -194,10 +194,9 @@
 
   .legacy-header {
     position: relative;
-    top: auto;
-    z-index: auto;
+    z-index: 10;
     padding: var(--spacing-sm) var(--spacing-lg);
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: 4px;
   }
   
   .header-left h1{
@@ -215,6 +214,11 @@
     flex: 1;
     display: flex;
     justify-content: center;
+  }
+
+  .top-toolbar {
+    position: relative;
+    z-index: 9;
   }
 
   #top-toolbar {

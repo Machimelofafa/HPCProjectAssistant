@@ -3,6 +3,32 @@
 
 const SCHEMA_VERSION = '1.0.0';
 
+const TL = {
+  ROW_HEIGHT: 28,
+  CHART_BOTTOM_PADDING: 60,
+  AXIS_PADDING: 20,
+  START_Y: 30,
+  GROUP_HEADER_HEIGHT: 22,
+  GROUP_HEADER_OFFSET: 6,
+  GROUP_HEADER_X_PAD: 10,
+  GROUP_LABEL_X: 8,
+  GROUP_LABEL_Y_OFFSET: 8,
+  BAR_HEIGHT: 16,
+  HANDLE_WIDTH: 3,
+  LABEL_PAD: 8,
+  LABEL_Y_OFFSET: 12,
+  LABEL_Y_OFFSET_MULTI: 6,
+  TICK_LABEL_Y: 14,
+  TICK_LABEL_X_OFFSET: 2,
+  MIN_BAR_WIDTH: 4,
+  INBAR_THRESHOLD: 40,
+  MILESTONE_SIZE: 12,
+  MILESTONE_X_OFFSET: 6,
+  MILESTONE_Y_OFFSET: 2,
+  PROGRESS_X_OFFSET: 4,
+  DURATION_X_OFFSET: 6
+};
+
 /**
  * =============================================================================
  * Main application module.
@@ -424,7 +450,7 @@ function InteractionManager(svg, options = {}) {
             try {
                 const bbox = svg.getBBox();
                 if (bbox.width > 0 && bbox.height > 0) {
-                    const padding = 20;
+                    const padding = TL.AXIS_PADDING;
                     setVB(bbox.x - padding, bbox.y - padding, bbox.width + padding * 2, bbox.height + padding * 2);
                     return;
                 }
@@ -689,9 +715,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   if(Object.keys(groups).length){ for(const k of Object.keys(groups).sort()){ order.push([k, groups[k].sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]); } }
   if(!order.length) order.push(['', tasks.sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]);
   const rows=[]; order.forEach(([k,arr])=>{ if(k){ rows.push({type:'group', label:k}); } arr.forEach(t=> rows.push({type:'task', t})); });
-  const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
+  const rowH=TL.ROW_HEIGHT; const chartH=Math.max(H, rows.length*rowH+TL.CHART_BOTTOM_PADDING); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
-  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-TL.AXIS_PADDING))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-TL.AXIS_PADDING));
   const startDate=parseDate(project.startDate); if(!startDate){ showToast('Invalid project start date.'); return; }
   const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
@@ -699,12 +725,12 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const tickDates=[];
   let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
   while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
-  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
+  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',TL.AXIS_PADDING); l.setAttribute('x2',x); l.setAttribute('y2',chartH-TL.AXIS_PADDING); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+TL.TICK_LABEL_X_OFFSET); t.setAttribute('y',TL.TICK_LABEL_Y); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
    const id2node=new Map();
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
-    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
+  let y=TL.START_Y; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-TL.GROUP_HEADER_OFFSET); rect.setAttribute('width',P-TL.GROUP_HEADER_X_PAD); rect.setAttribute('height',TL.GROUP_HEADER_HEIGHT); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',TL.GROUP_LABEL_X); tx.setAttribute('y',y+TL.GROUP_LABEL_Y_OFFSET); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=TL.GROUP_HEADER_HEIGHT; return; }
+    const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(TL.MIN_BAR_WIDTH, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);
     bar.setAttribute('role','listitem');
@@ -717,14 +743,14 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     if(isMilestone){
       bar.setAttribute('data-ms','1');
       const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      diamond.setAttribute("x",x-6); diamond.setAttribute("y",y+2); diamond.setAttribute("width",12); diamond.setAttribute("height",12);
-      diamond.setAttribute("transform",`rotate(45 ${x} ${y+8})`);
+      diamond.setAttribute("x",x-TL.MILESTONE_X_OFFSET); diamond.setAttribute("y",y+TL.MILESTONE_Y_OFFSET); diamond.setAttribute("width",TL.MILESTONE_SIZE); diamond.setAttribute("height",TL.MILESTONE_SIZE);
+      diamond.setAttribute("transform",`rotate(45 ${x} ${y+TL.MILESTONE_Y_OFFSET+TL.MILESTONE_SIZE/2})`);
       diamond.setAttribute("class","milestone"+(t.critical?' critical':''));
       diamond.setAttribute("style",`stroke:${col}`);
       bar.appendChild(diamond);
     }else{
       const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
+      rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",TL.BAR_HEIGHT); rect.setAttribute("style",`stroke:${col}`);
       bar.appendChild(rect);
 
       // Add overlay for critical tasks for the stripe pattern
@@ -734,19 +760,19 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         overlay.setAttribute('x', x);
         overlay.setAttribute('y', y);
         overlay.setAttribute('width', w);
-        overlay.setAttribute('height', 16);
+        overlay.setAttribute('height', TL.BAR_HEIGHT);
         bar.appendChild(overlay);
       }
 
       const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
-      if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
-      const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
-      const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
+      if(progW>0){ const prog=document.createElementNS("http://www.w3.org/2000/svg","rect"); prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",TL.BAR_HEIGHT); prog.setAttribute("class","progress"); prog.setAttribute("fill",col); bar.appendChild(prog); }
+      const left=document.createElementNS("http://www.w3.org/2000/svg","rect"); left.setAttribute("x",x-TL.HANDLE_WIDTH); left.setAttribute("y",y); left.setAttribute("width",TL.HANDLE_WIDTH); left.setAttribute("height",TL.BAR_HEIGHT); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
+      const right=document.createElementNS("http://www.w3.org/2000/svg","rect"); right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",TL.HANDLE_WIDTH); right.setAttribute("height",TL.BAR_HEIGHT); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
     }
     const label=document.createElementNS("http://www.w3.org/2000/svg","text");
     label.setAttribute("class","label");
-    label.setAttribute("x", P - 8);
-    label.setAttribute("y", y + 12);
+    label.setAttribute("x", P - TL.LABEL_PAD);
+    label.setAttribute("y", y + TL.LABEL_Y_OFFSET);
     label.setAttribute("text-anchor","end");
     bar.appendChild(label);
 
@@ -764,24 +790,24 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
         const line1 = name.substring(0, breakPoint);
         const line2 = name.substring(breakPoint).trim();
 
-        label.setAttribute("y", y + 6); // Adjust y for two lines
+        label.setAttribute("y", y + TL.LABEL_Y_OFFSET_MULTI); // Adjust y for two lines
 
         const tspan1 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
         tspan1.textContent = line1;
-        tspan1.setAttribute("x", P-8);
+        tspan1.setAttribute("x", P-TL.LABEL_PAD);
         label.appendChild(tspan1);
 
         const tspan2 = document.createElementNS("http://www.w3.org/2000/svg","tspan");
         tspan2.textContent = line2.length > maxCharsPerLine ? line2.substring(0, maxCharsPerLine - 1) + '…' : line2;
-        tspan2.setAttribute("x", P-8);
+        tspan2.setAttribute("x", P-TL.LABEL_PAD);
         tspan2.setAttribute("dy", "1.2em");
         label.appendChild(tspan2);
 
     } else {
         label.textContent = name;
     }
-    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
-    if(!isMilestone){ if (w > 40 || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
+    const dur=document.createElementNS("http://www.w3.org/2000/svg","text"); dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+TL.DURATION_X_OFFSET : x+w+TL.DURATION_X_OFFSET); dur.setAttribute("y",y+TL.LABEL_Y_OFFSET); dur.textContent=String(t.duration)+"d"; bar.appendChild(dur);
+    if(!isMilestone){ if (w > TL.INBAR_THRESHOLD || (t.pct||0) > 0) { const pct=document.createElementNS("http://www.w3.org/2000/svg","text"); pct.setAttribute("class","label inbar"); pct.setAttribute("x",x+TL.PROGRESS_X_OFFSET); pct.setAttribute("y",y+TL.LABEL_Y_OFFSET); pct.textContent=(t.pct||0)+"%"; bar.appendChild(pct); } }
       bar.addEventListener('click', (ev)=>{
         if(ev.shiftKey||ev.metaKey||ev.ctrlKey){
           toggleSelect(t.id);
@@ -819,7 +845,7 @@ function patchGantt(project, cpm, ids){
   const {P,W,finish,id2node,svg} = ganttState;
   if(!svg || !id2node.size){ renderGantt(project,cpm); return; }
   if(!ids || !ids.size){ return; }
-  const scale = (x)=> P + (x*(W-P-20))/finish;
+  const scale = (x)=> P + (x*(W-P-TL.AXIS_PADDING))/finish;
   const map = new Map(cpm.tasks.map(t=>[t.id,t]));
   ids.forEach(id=>{
     const t = map.get(id);
@@ -829,7 +855,7 @@ function patchGantt(project, cpm, ids){
     const label = node.label;
     const durDays = parseDuration(t.duration).days || 0;
     const x = scale(Math.max(0,t.es||0));
-    const w = Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
+    const w = Math.max(TL.MIN_BAR_WIDTH, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const col = colorFor(t.subsystem);
     bar.classList.toggle('critical', !!t.critical);
     bar.setAttribute('data-id', t.id);
@@ -840,12 +866,12 @@ function patchGantt(project, cpm, ids){
       const diamond = bar.querySelector('rect.milestone');
       if(diamond){
         const y2 = parseFloat(diamond.getAttribute('y'));
-        diamond.setAttribute('x', x-6);
-        diamond.setAttribute('transform',`rotate(45 ${x} ${y2+6})`);
+        diamond.setAttribute('x', x-TL.MILESTONE_X_OFFSET);
+        diamond.setAttribute('transform',`rotate(45 ${x} ${y2+TL.MILESTONE_SIZE/2})`);
         diamond.setAttribute('style',`stroke:${col}`);
       }
       const dur=bar.querySelector('.duration-label');
-      if(dur){ dur.setAttribute('x', x+6); dur.textContent=String(t.duration)+'d'; }
+      if(dur){ dur.setAttribute('x', x+TL.DURATION_X_OFFSET); dur.textContent=String(t.duration)+'d'; }
     }else{
       const rect = bar.querySelector('rect');
       if(rect){ rect.setAttribute('x',x); rect.setAttribute('width',w); rect.setAttribute('style',`stroke:${col}`); }
@@ -853,10 +879,10 @@ function patchGantt(project, cpm, ids){
       if(overlay){ overlay.setAttribute('x',x); overlay.setAttribute('width',w); }
       const prog=bar.querySelector('rect.progress');
       if(prog){ const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100)); prog.setAttribute('x',x); prog.setAttribute('width',progW); prog.setAttribute('fill',col); }
-      const left=bar.querySelector('rect.handle[data-side="left"]'); if(left) left.setAttribute('x',x-3);
+      const left=bar.querySelector('rect.handle[data-side="left"]'); if(left) left.setAttribute('x',x-TL.HANDLE_WIDTH);
       const right=bar.querySelector('rect.handle[data-side="right"]'); if(right) right.setAttribute('x',x+w);
-      const pct=bar.querySelector('text.inbar'); if(pct){ pct.setAttribute('x',x+4); pct.textContent=(t.pct||0)+"%"; }
-      const dur=bar.querySelector('.duration-label'); if(dur){ dur.setAttribute('x',x+w+6); dur.textContent=String(t.duration)+'d'; }
+      const pct=bar.querySelector('text.inbar'); if(pct){ pct.setAttribute('x',x+TL.PROGRESS_X_OFFSET); pct.textContent=(t.pct||0)+"%"; }
+      const dur=bar.querySelector('.duration-label'); if(dur){ dur.setAttribute('x',x+w+TL.DURATION_X_OFFSET); dur.textContent=String(t.duration)+'d'; }
     }
     if(label){ label.textContent = t.name || ''; }
   });
@@ -915,9 +941,9 @@ function onTimelinePointerMove(ev){
   const gg=ganttState.id2node.get(drag.id)?.bar;
   if(!gg) return;
   const rect=gg.querySelector('rect'); const labelNext=gg.querySelector('.duration-label');
-  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
+  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-TL.AXIS_PADDING));
   if(drag.side==='right'){
-    const newW=Math.max(4,drag.w0+dx); rect.setAttribute('width',newW);
+    const newW=Math.max(TL.MIN_BAR_WIDTH,drag.w0+dx); rect.setAttribute('width',newW);
     const dur=scaleInv(+rect.getAttribute('x')+newW)-(ganttState.cpm.tasks.find(t=>t.id===drag.id).es||0);
     labelNext.textContent=Math.max(1,dur)+'d'; hideHint(); gg.classList.remove('invalid','valid');
   }else{
@@ -938,7 +964,7 @@ function onTimelinePointerUp(ev){
   if(!gg){ drag=null; return; }
   if(!drag.moved){ gg.classList.remove('moved','invalid','valid'); drag=null; return; }
   const rect=gg.querySelector('rect'); const x=+rect.getAttribute('x'); const w=+rect.getAttribute('width');
-  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-20));
+  const scaleInv=px=>Math.round((px-ganttState.P)*ganttState.finish/(ganttState.W-ganttState.P-TL.AXIS_PADDING));
   const esNew=scaleInv(x); const efNew=scaleInv(x+w); const durNew=Math.max(1,efNew-esNew);
   const cur=ganttState.cpm.tasks.find(t=>t.id===drag.id);
   if(drag.side==='right'){
@@ -2020,7 +2046,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       img.onload = () => {
         const canvas = document.createElement('canvas');
         // Add padding for better aesthetics
-        const padding = 20;
+        const padding = TL.AXIS_PADDING;
         canvas.width = width + padding * 2;
         canvas.height = height + padding * 2;
         const ctx = canvas.getContext('2d');

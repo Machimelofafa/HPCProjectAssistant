@@ -3,6 +3,15 @@
 
 const SCHEMA_VERSION = '1.0.0';
 
+const GANTT_LAYOUT = Object.freeze({
+  ROW_HEIGHT: 28,
+  TOP_PADDING: 30,
+  CHART_PADDING: 60,
+  AXIS_PADDING: 20,
+  RIGHT_PADDING: 20,
+  TICK_LABEL_Y: 14
+});
+
 /**
  * =============================================================================
  * Main application module.
@@ -689,9 +698,9 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   if(Object.keys(groups).length){ for(const k of Object.keys(groups).sort()){ order.push([k, groups[k].sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]); } }
   if(!order.length) order.push(['', tasks.sort((a,b)=> (a.es-b.es)|| (a.name||'').localeCompare(b.name||''))]);
   const rows=[]; order.forEach(([k,arr])=>{ if(k){ rows.push({type:'group', label:k}); } arr.forEach(t=> rows.push({type:'task', t})); });
-  const rowH=28; const chartH=Math.max(H, rows.length*rowH+60); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
+  const rowH = GANTT_LAYOUT.ROW_HEIGHT; const chartH = Math.max(H, rows.length * rowH + GANTT_LAYOUT.CHART_PADDING); svg.setAttribute('viewBox',`0 0 ${W} ${chartH}`);
   svg.setAttribute('height', chartH);
-  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W-P-20))/finish; const scaleInv=(px)=> Math.round((px-P)*finish/(W-P-20));
+  const finish=Math.max(10,cpm.finishDays||10); const scale = (x)=> P + (x*(W - P - GANTT_LAYOUT.RIGHT_PADDING))/finish; const scaleInv=(px)=> Math.round((px - P) * finish / (W - P - GANTT_LAYOUT.RIGHT_PADDING));
   const startDate=parseDate(project.startDate); if(!startDate){ showToast('Invalid project start date.'); return; }
   const finishDate=cal.add(startDate, finish);
   const gAxis=document.createElementNS('http://www.w3.org/2000/svg','g'); gAxis.setAttribute('class','axis');
@@ -699,11 +708,11 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
   const tickDates=[];
   let d=new Date(startDate); d.setDate(1); if(d<startDate) d.setMonth(d.getMonth()+1);
   while(d<=finishDate){ tickDates.push(new Date(d)); d.setMonth(d.getMonth()+1); }
-  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',20); l.setAttribute('x2',x); l.setAttribute('y2',chartH-20); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',14); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
+  for(const d of tickDates){ const off=cal.diff(startDate,d); const x=scale(off); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x); l.setAttribute('y1',GANTT_LAYOUT.AXIS_PADDING); l.setAttribute('x2',x); l.setAttribute('y2',chartH - GANTT_LAYOUT.AXIS_PADDING); l.setAttribute('stroke','#e5e7eb'); gAxis.appendChild(l); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x+2); t.setAttribute('y',GANTT_LAYOUT.TICK_LABEL_Y); t.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; gAxis.appendChild(t); }
   svg.appendChild(gAxis);
   const g=document.createElementNS('http://www.w3.org/2000/svg','g'); svg.appendChild(g);
    const id2node=new Map();
-  let y=30; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
+  let y = GANTT_LAYOUT.TOP_PADDING; rows.forEach((r)=>{ if(r.type==='group'){ const rect=document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('x',0); rect.setAttribute('y',y-6); rect.setAttribute('width',P-10); rect.setAttribute('height',22); rect.setAttribute('class','groupHeader'); g.appendChild(rect); const tx=document.createElementNS('http://www.w3.org/2000/svg','text'); tx.setAttribute('x',8); tx.setAttribute('y',y+8); tx.setAttribute('class','groupLabel'); tx.textContent=r.label; g.appendChild(tx); y+=22; return; }
     const t=r.t; const x=scale(Math.max(0,t.es||0)), w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)) );
     const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
     bar.setAttribute('class','bar'+(t.critical?' critical':'')); bar.setAttribute('data-id',t.id);

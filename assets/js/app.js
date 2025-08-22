@@ -111,8 +111,6 @@ function setStyle(el, prop, val){ if(el) rafBatch(()=>{ el.style[prop] = val; })
 function setValue(el, val){ if(el) rafBatch(()=>{ el.value = val; }); }
 
 // ----------------------------[ SETTINGS STORE ]----------------------------
-const UI_FLAGS = { topSettingsToolbar: true };
-window.ui = UI_FLAGS;
 
 const SettingsStore = (function(){
   const state = {
@@ -1634,9 +1632,6 @@ function newProject(){
 window.addEventListener('DOMContentLoaded', ()=>{
   const ss = SettingsStore.get();
   rafBatch(()=>{
-    if (UI_FLAGS.topSettingsToolbar) {
-      document.body.classList.add('top-toolbar');
-    }
     setValue($('#slackThreshold'), ss.slackThreshold);
     setValue($('#filterText'), ss.filters.text);
     setValue($('#groupBy'), ss.filters.groupBy);
@@ -2255,12 +2250,6 @@ if (typeof _renderGanttOrig === 'function') {
   // Fallback if you don't have a render wrapper
   window.addEventListener('load', () => setTimeout(enhanceTimelineReadability, 0), { passive: true });
 }
-document.getElementById('btnToggleSidebar')?.addEventListener('click', (e)=>{
-  const on = !document.body.classList.contains('sidebar-collapsed');
-  document.body.classList.toggle('sidebar-collapsed', on);
-  e.currentTarget.setAttribute('aria-pressed', String(on));
-  setTimeout(()=> enhanceTimelineReadability(), 0); // reflow
-}, { passive: true });
 (function() {
   'use strict';
 

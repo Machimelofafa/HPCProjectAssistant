@@ -18,6 +18,11 @@ let lastCPMResult = null;
 let graphInitialized = false;
 let ganttState = { P: 0, W: 0, finish: 0, cpm: null, svg: null, id2node: new Map() };
 let drag = null;
+let pendingSourceIds = [];
+let pendingAffectedIds = null;
+
+window.addEventListener('state:changed', e=>{ pendingSourceIds = e.detail?.sourceIds || []; });
+
 
 function createCPMWorker(){
   if (location.protocol === 'file:') {
@@ -813,6 +818,100 @@ function renderGantt(project, cpm){ const svg=$('#gantt'); svg.innerHTML=''; con
     summaryContainer.appendChild(list);
   }
 }
+function buildBar(t, y, P, scale){
+  const bar=document.createElementNS('http://www.w3.org/2000/svg','g');
+  bar.setAttribute('class','bar'+(t.critical?' critical':''));
+  bar.setAttribute('data-id',t.id);
+  bar.setAttribute('role','listitem');
+  const durVal=parseDuration(t.duration).days||0;
+  const labelText=`${t.name}, phase ${t.phase || 'N/A'}, duration ${durVal} days, ${t.critical ? 'critical path' : 'slack '+ t.slack + ' days'}`;
+  bar.setAttribute('aria-label', labelText);
+  if(SEL.has(t.id)) bar.classList.add('selected');
+  const col=colorFor(t.subsystem);
+  const isMilestone=(parseDuration(t.duration).days||0)===0;
+  const x=scale(Math.max(0,t.es||0));
+  const w=Math.max(4, scale(Math.max(0,t.ef||1))-scale(Math.max(0,t.es||0)));
+  if(isMilestone){
+    bar.setAttribute('data-ms','1');
+    const diamond=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    diamond.setAttribute("x",x-6); diamond.setAttribute("y",y+2); diamond.setAttribute("width",12); diamond.setAttribute("height",12);
+    diamond.setAttribute("transform",`rotate(45 ${x} ${y+8})`);
+    diamond.setAttribute("class","milestone"+(t.critical?' critical':''));
+    diamond.setAttribute("style",`stroke:${col}`);
+    bar.appendChild(diamond);
+  } else {
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("x",x); rect.setAttribute("y",y); rect.setAttribute("width",w); rect.setAttribute("height",16); rect.setAttribute("style",`stroke:${col}`);
+    bar.appendChild(rect);
+    if(t.critical){
+      const overlay=document.createElementNS("http://www.w3.org/2000/svg","rect");
+      overlay.setAttribute('class','overlay');
+      overlay.setAttribute('x',x); overlay.setAttribute('y',y); overlay.setAttribute('width',w); overlay.setAttribute('height',16);
+      bar.appendChild(overlay);
+    }
+    const progW=Math.max(0, Math.min(w, w*(t.pct||0)/100));
+    if(progW>0){
+      const prog=document.createElementNS("http://www.w3.org/2000/svg","rect");
+      prog.setAttribute("x",x); prog.setAttribute("y",y); prog.setAttribute("width",progW); prog.setAttribute("height",16); prog.setAttribute("class","progress"); prog.setAttribute("fill",col);
+      bar.appendChild(prog);
+    }
+    const left=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    left.setAttribute("x",x-3); left.setAttribute("y",y); left.setAttribute("width",3); left.setAttribute("height",16); left.setAttribute("class","handle"); left.setAttribute("data-side","left"); bar.appendChild(left);
+    const right=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    right.setAttribute("x",x+w); right.setAttribute("y",y); right.setAttribute("width",3); right.setAttribute("height",16); right.setAttribute("class","handle"); right.setAttribute("data-side","right"); bar.appendChild(right);
+  }
+  const nameBg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  const nameWidth=Math.max(80,(t.name||'').length*8.5);
+  nameBg.setAttribute("x",P-10-nameWidth); nameBg.setAttribute("y",y-4); nameBg.setAttribute("width",nameWidth+4); nameBg.setAttribute("height",24); nameBg.setAttribute("fill","var(--bg)"); nameBg.setAttribute("rx","4"); nameBg.setAttribute("class","taskNameBg"); nameBg.style.pointerEvents='none';
+  bar.appendChild(nameBg);
+  const label=document.createElementNS("http://www.w3.org/2000/svg","text");
+  label.setAttribute("class","label"); label.setAttribute("x",P-8); label.setAttribute("y",y+12); label.setAttribute("text-anchor","end");
+  bar.appendChild(label);
+  const titleEl=document.createElementNS("http://www.w3.org/2000/svg","title"); titleEl.textContent=t.name; label.appendChild(titleEl);
+  const name=t.name||''; const maxCharsPerLine=Math.floor((P-20)/8.5);
+  if(name.length>maxCharsPerLine){
+    let breakPoint=name.lastIndexOf(' ',maxCharsPerLine); if(breakPoint===-1) breakPoint=maxCharsPerLine;
+    const line1=name.substring(0,breakPoint); const line2=name.substring(breakPoint).trim();
+    label.setAttribute("y",y+6);
+    const tspan1=document.createElementNS("http://www.w3.org/2000/svg","tspan"); tspan1.textContent=line1; tspan1.setAttribute("x",P-8); label.appendChild(tspan1);
+    const tspan2=document.createElementNS("http://www.w3.org/2000/svg","tspan"); tspan2.textContent=line2.length>maxCharsPerLine? line2.substring(0,maxCharsPerLine-1)+'…':line2; tspan2.setAttribute("x",P-8); tspan2.setAttribute("dy","1.2em"); label.appendChild(tspan2);
+    nameBg.setAttribute('height','40'); nameBg.setAttribute('y',y-6);
+  } else {
+    label.textContent=name;
+  }
+  const dur=document.createElementNS("http://www.w3.org/2000/svg","text");
+  dur.setAttribute("class","label duration-label"); dur.setAttribute("x",isMilestone? x+6 : x+w+6); dur.setAttribute("y",y+12); dur.textContent=String(t.duration)+"d";
+  bar.appendChild(dur);
+  if(!isMilestone){
+    if(w>40 || (t.pct||0)>0){
+      const pct=document.createElementNS("http://www.w3.org/2000/svg","text");
+      pct.setAttribute("class","label inbar");
+      pct.setAttribute("x",x+4); pct.setAttribute("y",y+12); pct.textContent=(t.pct||0)+"%";
+      bar.appendChild(pct);
+    }
+  }
+  bar.addEventListener('click',(ev)=>{ if(ev.shiftKey||ev.metaKey||ev.ctrlKey){ toggleSelect(t.id); } else { selectOnly(t.id); } });
+  bar.addEventListener('contextmenu',(ev)=>{ ev.preventDefault(); selectOnly(t.id); showContextMenu(ev.clientX, ev.clientY, t.id); });
+  return {bar,label};
+}
+
+function patchGantt(project, cpm, ids){
+  const {P,W,finish,svg,id2node}=ganttState;
+  if(!svg || !ganttState.cpm){ renderGantt(project,cpm); return; }
+  const scale=(x)=> P + (x*(W-P-20))/finish;
+  const id2=Object.fromEntries(cpm.tasks.map(t=>[t.id,t]));
+  for(const id of ids){
+    const node=id2node.get(id);
+    const t=id2[id];
+    if(!node || !t){ renderGantt(project,cpm); return; }
+    const y=Number(node.label.getAttribute('y'))-12;
+    const {bar,label}=buildBar(t,y,P,scale);
+    node.bar.replaceWith(bar);
+    id2node.set(id,{bar,label});
+  }
+  ganttState.cpm=cpm;
+  debouncedEnhance();
+}
 
 function calcEarliestESFor(project, id, dur){
   const id2=Object.fromEntries(project.tasks.map(t=>[t.id,t]));
@@ -1463,7 +1562,31 @@ function setupLegend(){ const box=$('#subsysFilters'); box.innerHTML=''; SUBS.fo
 function parseHolidaysInput(){ const raw=$('#holidayInput').value||''; const tokens=raw.split(/[\s,]+/).filter(Boolean); const out=[]; for(const t of tokens){ const m=t.match(/^\d{2}-\d{2}-\d{4}$/); if(m){ out.push(t); } }
   return out; }
 
-function triggerCPM(project) {
+function computeAffectedIds(project, ids){
+  const succ=new Map();
+  for(const t of project.tasks){
+    if(t.active===false) continue;
+    for(const e of normalizeDeps(t)){
+      if(!succ.has(e.pred)) succ.set(e.pred,[]);
+      succ.get(e.pred).push(t.id);
+    }
+  }
+  const out=new Set(ids);
+  const q=[...ids];
+  while(q.length){
+    const id=q.shift();
+    for(const s of (succ.get(id)||[])){
+      if(!out.has(s)){
+        out.add(s);
+        q.push(s);
+      }
+    }
+  }
+  return out;
+}
+function triggerCPM(project, affectedIds) {
+    pendingAffectedIds = affectedIds ? new Set(affectedIds) : null;
+
     if (!cpmWorker) {
         console.error("CPM Worker not initialized.");
         return;
@@ -1490,10 +1613,12 @@ function triggerCPM(project) {
     cpmWorker.postMessage({ type: 'compute', project: clone(project) });
 }
 
-function renderAll(project, cpm) {
+function renderAll(project, cpm, affectedIds) {
     if (!cpm) return;
     rafBatch(()=>{
-      renderGantt(project, cpm);
+      const canPatch = affectedIds && ganttState.cpm && ganttState.svg && ganttState.finish === (cpm.finishDays||0) && Array.from(affectedIds).every(id=>ganttState.id2node.has(id));
+      if (canPatch) patchGantt(project, cpm, affectedIds);
+      else renderGantt(project, cpm);
       // The graph is now rendered lazily, so we don't render it here on every update.
       // if ($('.tab[data-tab="graph"]').classList.contains('active')) {
       //     renderGraph(project, cpm);
@@ -1509,7 +1634,13 @@ function renderAll(project, cpm) {
 }
 
 function refresh(){
-    rafBatch(()=>{ triggerCPM(SM.get()); });
+    const project = SM.get();
+    let ids = null;
+    if(pendingSourceIds && pendingSourceIds.length){
+      ids = Array.from(computeAffectedIds(project, pendingSourceIds));
+    }
+    pendingSourceIds = [];
+    rafBatch(()=>{ triggerCPM(project, ids); });
 }
 
 function newProject(){
@@ -1555,7 +1686,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
                 SM.setCPMWarnings(lastCPMResult.warnings || []);
 
                 const s = SM.get();
-                renderAll(s, lastCPMResult);
+                const ids = pendingAffectedIds;
+                pendingAffectedIds = null;
+                renderAll(s, lastCPMResult, ids);
             }
         };
 
